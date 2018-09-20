@@ -464,6 +464,8 @@ typedef struct {
 	int function_state;			// 功能状态
 }	device_t;
 
+static device_t* g_pRenderDevice;
+
 #define RENDER_STATE_WIREFRAME      1		// 渲染线框
 #define RENDER_STATE_TEXTURE        2		// 渲染纹理
 #define RENDER_STATE_COLOR          4		// 渲染颜色
@@ -853,13 +855,41 @@ int screen_close(void) {
 	return 0;
 }
 
+static void dispatch_key_event(WPARAM wKey)
+{
+	switch (wKey) {
+		case VK_F1:
+			if (g_pRenderDevice->function_state & FUNC_STATE_CULL_BACK)
+			{
+				g_pRenderDevice->function_state &= ~(FUNC_STATE_CULL_BACK);
+			}
+			else
+			{
+				g_pRenderDevice->function_state |= FUNC_STATE_CULL_BACK;
+			}
+	
+			break;
+
+		default:
+			break;
+	}
+}
+
 static LRESULT screen_events(HWND hWnd, UINT msg, 
 	WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
-	case WM_CLOSE: screen_exit = 1; break;
-	case WM_KEYDOWN: screen_keys[wParam & 511] = 1; break;
-	case WM_KEYUP: screen_keys[wParam & 511] = 0; break;
-	default: return DefWindowProc(hWnd, msg, wParam, lParam);
+	case WM_CLOSE: 
+		screen_exit = 1; 
+		break;
+	case WM_KEYDOWN: 
+		screen_keys[wParam & 511] = 1; 
+		break;
+	case WM_KEYUP: 
+		screen_keys[wParam & 511] = 0; 
+		dispatch_key_event(wParam);
+		break;
+	default: 
+		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 	return 0;
 }
@@ -937,6 +967,8 @@ void init_texture(device_t *device) {
 int main(void)
 {
 	device_t device;
+	g_pRenderDevice = &device;
+
 	int states[] = { RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_WIREFRAME };
 	int indicator = 0;
 	int kbhit = 0;
