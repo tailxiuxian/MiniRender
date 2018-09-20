@@ -444,7 +444,6 @@ void trapezoid_init_scan_line(const trapezoid_t *trap, scanline_t *scanline, int
 	vertex_division(&scanline->step, &trap->left.v, &trap->right.v, width);
 }
 
-
 //=====================================================================
 // 渲染设备
 //=====================================================================
@@ -462,11 +461,15 @@ typedef struct {
 	int render_state;           // 渲染状态
 	IUINT32 background;         // 背景颜色
 	IUINT32 foreground;         // 线框颜色
+	int function_state;			// 功能状态
 }	device_t;
 
 #define RENDER_STATE_WIREFRAME      1		// 渲染线框
 #define RENDER_STATE_TEXTURE        2		// 渲染纹理
 #define RENDER_STATE_COLOR          4		// 渲染颜色
+
+#define FUNC_STATE_CULL_BACK		1		// 背部剔除
+
 
 // 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
 void device_init(device_t *device, int width, int height, void *fb) {
@@ -501,6 +504,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->foreground = 0;
 	transform_init(&device->transform, width, height);
 	device->render_state = RENDER_STATE_WIREFRAME;
+	device->function_state |= FUNC_STATE_CULL_BACK;
 }
 
 // 删除设备
@@ -540,6 +544,33 @@ void device_clear(device_t *device, int mode) {
 		for (x = device->width; x > 0; dst++, x--) dst[0] = 0.0f;
 	}
 }
+
+//=====================================================================
+// 功能区域
+//=====================================================================
+int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
+{
+	if (device->function_state & FUNC_STATE_CULL_BACK)
+	{
+		vector_t dirPrimitive, vec1, vec2;
+
+		vector_sub(&vec1, p2, p1);
+		vector_sub(&vec2, p3, p2);
+		vector_crossproduct(&dirPrimitive, &vec1, &vec2);
+
+		static vector_t dirView = { 0,0,-1,1 };
+		if (vector_dotproduct(&dirPrimitive, &dirView) < 0)
+		{
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+//=====================================================================
+// 绘制区域
+//=====================================================================
 
 // 画点
 void device_pixel(device_t *device, int x, int y, IUINT32 color) {
@@ -685,6 +716,9 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 	transform_homogenize(&device->transform, &p1, &c1);
 	transform_homogenize(&device->transform, &p2, &c2);
 	transform_homogenize(&device->transform, &p3, &c3);
+
+	// 背面剔除
+	if (function_cull_back(device, &p1, &p2, &p3) != 0) return;
 
 	// 纹理或者色彩绘制
 	if (render_state & (RENDER_STATE_TEXTURE | RENDER_STATE_COLOR)) {
@@ -875,7 +909,7 @@ void draw_box(device_t *device, float theta) {
 	device->transform.world = m;
 	transform_update(&device->transform);
 	draw_plane(device, 0, 1, 2, 3);
-	draw_plane(device, 4, 5, 6, 7);
+	draw_plane(device, 4, 7, 6, 5);
 	draw_plane(device, 0, 4, 5, 1);
 	draw_plane(device, 1, 5, 6, 2);
 	draw_plane(device, 2, 6, 7, 3);
