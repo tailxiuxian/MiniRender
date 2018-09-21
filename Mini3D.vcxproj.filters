@@ -2,5 +2,14 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="mini3d.c" />
+    <ClCompile Include="mathlib.c" />
+    <ClCompile Include="transform.c" />
+    <ClCompile Include="geometry.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="mathlib.h" />
+    <ClInclude Include="transform.h" />
+    <ClInclude Include="geometry.h" />
+    <ClInclude Include="basetype.h" />
   </ItemGroup>
 </Project>
