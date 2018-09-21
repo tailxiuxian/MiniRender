@@ -18,6 +18,7 @@ void vertex_interp(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float t)
 	y->color.g = interp(x1->color.g, x2->color.g, t);
 	y->color.b = interp(x1->color.b, x2->color.b, t);
 	y->rhw = interp(x1->rhw, x2->rhw, t);
+	vector_interp(&y->normal, &x1->normal, &x2->normal, t);
 }
 
 void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float w) {
@@ -32,6 +33,10 @@ void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float 
 	y->color.g = (x2->color.g - x1->color.g) * inv;
 	y->color.b = (x2->color.b - x1->color.b) * inv;
 	y->rhw = (x2->rhw - x1->rhw) * inv;
+	y->normal.x = (x2->normal.x - x1->normal.x) * inv;
+	y->normal.y = (x2->normal.y - x1->normal.y) * inv;
+	y->normal.z = (x2->normal.z - x1->normal.z) * inv;
+	y->normal.w = (x2->normal.w - x1->normal.w) * inv;
 }
 
 void vertex_add(vertex_t *y, const vertex_t *x) {
@@ -45,6 +50,10 @@ void vertex_add(vertex_t *y, const vertex_t *x) {
 	y->color.r += x->color.r;
 	y->color.g += x->color.g;
 	y->color.b += x->color.b;
+	y->normal.x += x->normal.x;
+	y->normal.y += x->normal.y;
+	y->normal.z += x->normal.z;
+	y->normal.w += x->normal.w;
 }
 
 // 根据三角形生成 0-2 个梯形，并且返回合法梯形的数量

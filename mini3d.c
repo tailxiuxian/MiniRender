@@ -30,6 +30,12 @@
 //=====================================================================
 // 渲染设备
 //=====================================================================
+
+typedef struct {
+	color_t energy;
+	vector_t direction; //光向量
+} para_light_source_t;
+
 typedef struct {
 	transform_t transform;      // 坐标变换器
 	int width;                  // 窗口宽度
@@ -45,6 +51,9 @@ typedef struct {
 	IUINT32 background;         // 背景颜色
 	IUINT32 foreground;         // 线框颜色
 	int function_state;			// 功能状态
+
+	para_light_source_t para_light;
+	point_t eye;
 }	device_t;
 
 static device_t* g_pRenderDevice;
@@ -54,6 +63,7 @@ static device_t* g_pRenderDevice;
 #define RENDER_STATE_COLOR          4		// 渲染颜色
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
+#define FUNC_STATE_PARA_LIGHT		2		// 平行光照
 
 
 // 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
@@ -89,7 +99,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->foreground = 0;
 	transform_init(&device->transform, width, height);
 	device->render_state = RENDER_STATE_WIREFRAME;
-	device->function_state |= FUNC_STATE_CULL_BACK;
+	device->function_state = 0;
 }
 
 // 删除设备
@@ -144,13 +154,24 @@ int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
 		vector_crossproduct(&dirPrimitive, &vec1, &vec2);
 
 		static vector_t dirView = { 0,0,-1,1 };
-		if (vector_dotproduct(&dirPrimitive, &dirView) < 0)
+		if (vector_dotproduct(&dirPrimitive, &dirView) > 0)
 		{
 			return 1;
 		}
 	}
 
 	return 0;
+}
+
+int function_default_para_light(device_t* device)
+{
+	device->para_light.energy.r = 1.0;
+	device->para_light.energy.g = 1.0;
+	device->para_light.energy.b = 1.0;
+	device->para_light.direction.x = 1.0;
+	device->para_light.direction.y = 2.0;
+	device->para_light.direction.z = 3.0;
+	device->para_light.direction.w = 0.0;
 }
 
 //=====================================================================
@@ -225,6 +246,21 @@ IUINT32 device_texture_read(const device_t *device, float u, float v) {
 // 渲染实现
 //=====================================================================
 
+IUINT32 Get_R(IUINT32 color)
+{
+	return (color >> 16) & 0x000000FF;
+}
+
+IUINT32 Get_G(IUINT32 color)
+{
+	return (color >> 8) & 0x000000FF;
+}
+
+IUINT32 Get_B(IUINT32 color)
+{
+	return color & 0x000000FF;
+}
+
 // 绘制扫描线
 void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	IUINT32 *framebuffer = device->framebuffer[scanline->y];
@@ -233,6 +269,7 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	int w = scanline->w;
 	int width = device->width;
 	int render_state = device->render_state;
+	int function_state = device->function_state;
 	for (; w > 0; x++, w--) {
 		if (x >= 0 && x < width) {
 			float rhw = scanline->v.rhw;
@@ -251,11 +288,47 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 					B = CMID(B, 0, 255);
 					framebuffer[x] = (R << 16) | (G << 8) | (B);
 				}
+
 				if (render_state & RENDER_STATE_TEXTURE) {
 					float u = scanline->v.tc.u * w;
 					float v = scanline->v.tc.v * w;
-					IUINT32 cc = device_texture_read(device, u, v);
-					framebuffer[x] = cc;
+
+					if (function_state & FUNC_STATE_PARA_LIGHT)
+					{
+						vector_t normal = scanline->v.normal;
+						para_light_source_t* light = &(device->para_light);
+						vector_normalize(&(light->direction));
+						vector_normalize(&normal);
+
+						matrix_t normal_world;
+						matrix_transpose(&(device->transform.worldInv), &normal_world);
+						vector_t cnormal;
+						matrix_apply(&cnormal, &normal, &(normal_world));
+
+						IUINT32 cc = device_texture_read(device, u, v);
+						float diffuse = vector_dotproduct(&(light->direction), &cnormal);
+						if (diffuse >= 0)
+						{
+							int texture_R = Get_R(cc);
+							int texture_G = Get_G(cc);
+							int texture_B = Get_B(cc);
+
+							int diffuse_R = texture_R * diffuse * light->energy.r;
+							int diffuse_G = texture_G * diffuse * light->energy.g;
+							int diffuse_B = texture_B * diffuse * light->energy.b;
+
+							framebuffer[x] = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B) ;
+						}
+						else
+						{
+							framebuffer[x] = 0;
+						}
+					}
+					else
+					{
+						IUINT32 cc = device_texture_read(device, u, v);
+						framebuffer[x] = cc;
+					}
 				}
 			}
 		}
@@ -291,6 +364,9 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 	transform_apply(&device->transform, &c2, &v2->pos);
 	transform_apply(&device->transform, &c3, &v3->pos);
 
+	// 背面剔除
+	if (function_cull_back(device, &c1, &c2, &c3) != 0) return;
+
 	// 裁剪，注意此处可以完善为具体判断几个点在 cvv内以及同cvv相交平面的坐标比例
 	// 进行进一步精细裁剪，将一个分解为几个完全处在 cvv内的三角形
 	if (transform_check_cvv(&c1) != 0) return;
@@ -301,9 +377,6 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 	transform_homogenize(&device->transform, &p1, &c1);
 	transform_homogenize(&device->transform, &p2, &c2);
 	transform_homogenize(&device->transform, &p3, &c3);
-
-	// 背面剔除
-	if (function_cull_back(device, &p1, &p2, &p3) != 0) return;
 
 	// 纹理或者色彩绘制
 	if (render_state & (RENDER_STATE_TEXTURE | RENDER_STATE_COLOR)) {
@@ -442,6 +515,7 @@ static void dispatch_key_event(WPARAM wKey)
 {
 	switch (wKey) {
 		case VK_F1:
+		{
 			if (g_pRenderDevice->function_state & FUNC_STATE_CULL_BACK)
 			{
 				g_pRenderDevice->function_state &= ~(FUNC_STATE_CULL_BACK);
@@ -450,8 +524,22 @@ static void dispatch_key_event(WPARAM wKey)
 			{
 				g_pRenderDevice->function_state |= FUNC_STATE_CULL_BACK;
 			}
-	
+
 			break;
+		}
+
+		case VK_F2:
+		{
+			if (g_pRenderDevice->function_state & FUNC_STATE_PARA_LIGHT)
+			{
+				g_pRenderDevice->function_state &= ~(FUNC_STATE_PARA_LIGHT);
+			}
+			else
+			{
+				g_pRenderDevice->function_state |= FUNC_STATE_PARA_LIGHT;
+				function_default_para_light(g_pRenderDevice);
+			};
+		}
 
 		default:
 			break;
@@ -497,15 +585,36 @@ void screen_update(void) {
 //=====================================================================
 // 主程序
 //=====================================================================
-vertex_t mesh[8] = {
-	{ {  1, -1,  1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f }, 1 },
-	{ { -1, -1,  1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 0.2f }, 1 },
-	{ { -1,  1,  1, 1 }, { 1, 1 }, { 0.2f, 0.2f, 1.0f }, 1 },
-	{ {  1,  1,  1, 1 }, { 1, 0 }, { 1.0f, 0.2f, 1.0f }, 1 },
-	{ {  1, -1, -1, 1 }, { 0, 0 }, { 1.0f, 1.0f, 0.2f }, 1 },
-	{ { -1, -1, -1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 1.0f }, 1 },
-	{ { -1,  1, -1, 1 }, { 1, 1 }, { 1.0f, 0.3f, 0.3f }, 1 },
-	{ {  1,  1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 0.3f }, 1 },
+vertex_t mesh[24] = {
+	{ {  1, -1,  1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f },{ 0, 0,  1, 0 }, 1 },
+	{ { -1, -1,  1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 0.2f },{ 0, 0,  1, 0 }, 1 },
+	{ { -1,  1,  1, 1 }, { 1, 1 }, { 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ {  1,  1,  1, 1 }, { 1, 0 }, { 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+
+	{ {  1, -1, -1, 1 }, { 0, 0 }, { 1.0f, 1.0f, 0.2f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1, -1, -1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 1.0f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1,  1, -1, 1 }, { 1, 1 }, { 1.0f, 0.3f, 0.3f },{ 0, 0, -1, 0 }, 1 },
+	{ {  1,  1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 0.3f },{ 0, 0, -1, 0 }, 1 },
+
+	{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+
+	{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ 0, 1, 0, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f },{ 0, 1, 0, 0 }, 1 },
+
+	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f },{ 0, -1,  0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 0, 0 },{ 1.0f, 1.0f, 0.2f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ 0, -1,  0, 0 }, 1 },
+
+	{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 0, 0 },{ 1.0f, 1.0f, 0.2f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f },{ 1, 0,  0, 0 }, 1 },
 };
 
 void draw_plane(device_t *device, int a, int b, int c, int d) {
@@ -520,19 +629,21 @@ void draw_box(device_t *device, float theta) {
 	matrix_t m;
 	matrix_set_rotate(&m, -1, -0.5, 1, theta);
 	device->transform.world = m;
+	matrix_inverse(&m, &(device->transform.worldInv));
 	transform_update(&device->transform);
 	draw_plane(device, 0, 1, 2, 3);
 	draw_plane(device, 4, 7, 6, 5);
-	draw_plane(device, 0, 4, 5, 1);
-	draw_plane(device, 1, 5, 6, 2);
-	draw_plane(device, 2, 6, 7, 3);
-	draw_plane(device, 3, 7, 4, 0);
+	draw_plane(device, 8, 9, 10, 11);
+	draw_plane(device, 12, 13, 14, 15);
+	draw_plane(device, 16, 17, 18, 19);
+	draw_plane(device, 20, 21, 22, 23);
 }
 
 void camera_at_zero(device_t *device, float x, float y, float z) {
 	point_t eye = { x, y, z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
 	matrix_set_lookat(&device->transform.view, &eye, &at, &up);
 	transform_update(&device->transform);
+	device->eye = eye;
 }
 
 void init_texture(device_t *device) {
@@ -555,8 +666,8 @@ int main(void)
 	int states[] = { RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_WIREFRAME };
 	int indicator = 0;
 	int kbhit = 0;
-	float alpha = 1;
-	float pos = 3.5;
+	float alpha = 0;
+	float pos = 5;
 
 	TCHAR *title = _T("Mini3d (software render tutorial) - ")
 		_T("Left/Right: rotation, Up/Down: forward/backward, Space: switch state");
@@ -565,7 +676,7 @@ int main(void)
 		return -1;
 
 	device_init(&device, 800, 600, screen_fb);
-	camera_at_zero(&device, 3, 0, 0);
+	camera_at_zero(&device, 0, 0, 0);
 
 	init_texture(&device);
 	device.render_state = RENDER_STATE_TEXTURE;
@@ -573,7 +684,7 @@ int main(void)
 	while (screen_exit == 0 && screen_keys[VK_ESCAPE] == 0) {
 		screen_dispatch();
 		device_clear(&device, 1);
-		camera_at_zero(&device, pos, 0, 0);
+		camera_at_zero(&device, pos, pos, pos);
 		
 		if (screen_keys[VK_UP]) pos -= 0.01f;
 		if (screen_keys[VK_DOWN]) pos += 0.01f;

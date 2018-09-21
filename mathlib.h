@@ -63,3 +63,9 @@ void matrix_set_lookat(matrix_t *m, const vector_t *eye, const vector_t *at, con
 
 // D3DXMatrixPerspectiveFovLH
 void matrix_set_perspective(matrix_t *m, float fovy, float aspect, float zn, float zf);
+
+// ¾ØÕóÇóÄæ
+void matrix_inverse(matrix_t *src, matrix_t *dst);
+
+// ¾ØÕó×ªÖÃ
+void matrix_transpose(matrix_t *src, matrix_t *dst);

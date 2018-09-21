@@ -213,3 +213,64 @@ void matrix_set_perspective(matrix_t *m, float fovy, float aspect, float zn, flo
 	m->m[3][2] = -zn * zf / (zf - zn);
 	m->m[2][3] = 1;
 }
+
+// ¾ØÕóÇóÄæ
+void matrix_inverse(matrix_t *src, matrix_t *dst)
+{
+	float a0 = src->m[0][0] * src->m[1][1] - src->m[0][1] * src->m[1][0];
+	float a1 = src->m[0][0] * src->m[1][2] - src->m[0][2] * src->m[1][0];
+	float a2 = src->m[0][0] * src->m[1][3] - src->m[0][3] * src->m[1][0];
+	float a3 = src->m[0][1] * src->m[1][2] - src->m[0][2] * src->m[1][1];
+	float a4 = src->m[0][1] * src->m[1][3] - src->m[0][3] * src->m[1][1];
+	float a5 = src->m[0][2] * src->m[1][3] - src->m[0][3] * src->m[1][2];
+	float b0 = src->m[2][0] * src->m[3][1] - src->m[2][1] * src->m[3][0];
+	float b1 = src->m[2][0] * src->m[3][2] - src->m[2][2] * src->m[3][0];
+	float b2 = src->m[2][0] * src->m[3][3] - src->m[2][3] * src->m[3][0];
+	float b3 = src->m[2][1] * src->m[3][2] - src->m[2][2] * src->m[3][1];
+	float b4 = src->m[2][1] * src->m[3][3] - src->m[2][3] * src->m[3][1];
+	float b5 = src->m[2][2] * src->m[3][3] - src->m[2][3] * src->m[3][2];
+
+	float det = a0 * b5 - a1 * b4 + a2 * b3 + a3 * b2 - a4 * b1 + a5 * b0;
+
+	if (fabs(det) <= 2e-37f)
+	{
+		return;
+	}
+	
+	matrix_t inverse;
+	inverse.m[0][0] = src->m[1][1] * b5 - src->m[1][2] * b4 + src->m[1][3] * b3;
+	inverse.m[0][1] = -src->m[0][1] * b5 + src->m[0][2] * b4 - src->m[0][3] * b3;
+	inverse.m[0][2] = src->m[3][1] * a5 - src->m[3][2] * a4 + src->m[3][3] * a3;
+	inverse.m[0][3] = -src->m[2][1] * a5 + src->m[2][2] * a4 - src->m[2][3] * a3;
+
+	inverse.m[1][0] = -src->m[1][0] * b5 + src->m[1][2] * b2 - src->m[1][3] * b1;
+	inverse.m[1][1] = src->m[0][0] * b5 - src->m[0][2] * b2 + src->m[0][3] * b1;
+	inverse.m[1][2] = -src->m[3][0] * a5 + src->m[3][2] * a2 - src->m[3][3] * a1;
+	inverse.m[1][3] = src->m[2][0] * a5 - src->m[2][2] * a2 + src->m[2][3] * a1;
+
+	inverse.m[2][0] = src->m[1][0] * b4 - src->m[1][1] * b2 + src->m[1][3] * b0;
+	inverse.m[2][1] = -src->m[0][0] * b4 + src->m[0][1] * b2 - src->m[0][3] * b0;
+	inverse.m[2][2] = src->m[3][0] * a4 - src->m[3][1] * a2 + src->m[3][3] * a0;
+	inverse.m[2][3] = -src->m[2][0] * a4 + src->m[2][1] * a2 - src->m[2][3] * a0;
+
+	inverse.m[3][0] = -src->m[1][0] * b3 + src->m[1][1] * b1 - src->m[1][2] * b0;
+	inverse.m[3][1] = src->m[0][0] * b3 - src->m[0][1] * b1 + src->m[0][2] * b0;
+	inverse.m[3][2] = -src->m[3][0] * a3 + src->m[3][1] * a1 - src->m[3][2] * a0;
+	inverse.m[3][3] = src->m[2][0] * a3 - src->m[2][1] * a1 + src->m[2][2] * a0;
+
+	float scaler = 1.0f / det;
+
+	matrix_scale(dst, &inverse, scaler);
+}
+
+void matrix_transpose(matrix_t *src, matrix_t *dst)
+{
+	int i, j;
+	for (i = 0; i < 4; i++)
+	{
+		for (j = 0; j < 4; j++)
+		{
+			dst->m[i][j] = src->m[j][i];
+		}
+	}
+}

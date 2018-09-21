@@ -11,6 +11,8 @@ typedef struct {
 	matrix_t projection;    // 投影变换
 	matrix_t transform;     // transform = world * view * projection
 	float w, h;             // 屏幕大小
+	matrix_t worldInv;		// 世界坐标变换的逆矩阵
+	matrix_t viewInv;		// 摄影机变换的逆矩阵
 }	transform_t;
 
 
