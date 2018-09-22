@@ -58,9 +58,10 @@ typedef struct {
 
 static device_t* g_pRenderDevice;
 
-#define RENDER_STATE_WIREFRAME      1		// 渲染线框
-#define RENDER_STATE_TEXTURE        2		// 渲染纹理
-#define RENDER_STATE_COLOR          4		// 渲染颜色
+#define RENDER_STATE_WIREFRAME      0		// 渲染线框
+#define RENDER_STATE_TEXTURE        1		// 渲染纹理
+#define RENDER_STATE_COLOR          2		// 渲染颜色
+#define RENDER_STATE_LAMBERT_LIGHT_TEXTURE 4 // 兰伯特光照
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
 #define FUNC_STATE_PARA_LIGHT		2		// 平行光照
@@ -163,7 +164,7 @@ int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
 	return 0;
 }
 
-int function_default_para_light(device_t* device)
+void function_default_para_light(device_t* device)
 {
 	device->para_light.energy.r = 1.0;
 	device->para_light.energy.g = 1.0;
@@ -261,6 +262,86 @@ IUINT32 Get_B(IUINT32 color)
 	return color & 0x000000FF;
 }
 
+//=====================================================================
+// 片元渲染器
+//=====================================================================
+
+typedef IUINT32(*func_pixel_shader)(device_t* device, vertex_t* vertex);
+
+typedef struct {
+	IUINT32 RenderState;
+	func_pixel_shader p_pixel_shader;
+} RenderComponent;
+
+IUINT32 shader_normal_color(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float r = vertex->color.r * w;
+	float g = vertex->color.g * w;
+	float b = vertex->color.b * w;
+	int R = (int)(r * 255.0f);
+	int G = (int)(g * 255.0f);
+	int B = (int)(b * 255.0f);
+	R = CMID(R, 0, 255);
+	G = CMID(G, 0, 255);
+	B = CMID(B, 0, 255);
+	return (R << 16) | (G << 8) | (B);
+}
+
+IUINT32 shader_normal_texture(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float u = vertex->tc.u * w;
+	float v = vertex->tc.v * w;
+
+	return device_texture_read(device, u, v);
+}
+
+IUINT32 shader_texture_lambert_light(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float u = vertex->tc.u * w;
+	float v = vertex->tc.v * w;
+
+	vector_t normal = vertex->normal;
+	para_light_source_t* light = &(device->para_light);
+	vector_normalize(&(light->direction));
+	vector_normalize(&normal);
+
+	matrix_t normal_world;
+	matrix_transpose(&(device->transform.worldInv), &normal_world);
+	vector_t cnormal;
+	matrix_apply(&cnormal, &normal, &(normal_world));
+
+	IUINT32 cc = device_texture_read(device, u, v);
+	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
+	if (diffuse >= 0)
+	{
+		int texture_R = Get_R(cc);
+		int texture_G = Get_G(cc);
+		int texture_B = Get_B(cc);
+
+		int diffuse_R = texture_R * diffuse * light->energy.r;
+		int diffuse_G = texture_G * diffuse * light->energy.g;
+		int diffuse_B = texture_B * diffuse * light->energy.b;
+
+		return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+RenderComponent g_RenderComponent[3] = {
+	{ RENDER_STATE_COLOR, shader_normal_color },
+	{ RENDER_STATE_TEXTURE, shader_normal_texture },
+	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_texture_lambert_light },
+};
+
 // 绘制扫描线
 void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	IUINT32 *framebuffer = device->framebuffer[scanline->y];
@@ -276,59 +357,14 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 			if (rhw >= zbuffer[x]) {	
 				float w = 1.0f / rhw;
 				zbuffer[x] = rhw;
-				if (render_state & RENDER_STATE_COLOR) {
-					float r = scanline->v.color.r * w;
-					float g = scanline->v.color.g * w;
-					float b = scanline->v.color.b * w;
-					int R = (int)(r * 255.0f);
-					int G = (int)(g * 255.0f);
-					int B = (int)(b * 255.0f);
-					R = CMID(R, 0, 255);
-					G = CMID(G, 0, 255);
-					B = CMID(B, 0, 255);
-					framebuffer[x] = (R << 16) | (G << 8) | (B);
+				if (render_state == RENDER_STATE_COLOR) {
+					framebuffer[x] = shader_normal_color(device, &(scanline->v));
 				}
-
-				if (render_state & RENDER_STATE_TEXTURE) {
-					float u = scanline->v.tc.u * w;
-					float v = scanline->v.tc.v * w;
-
-					if (function_state & FUNC_STATE_PARA_LIGHT)
-					{
-						vector_t normal = scanline->v.normal;
-						para_light_source_t* light = &(device->para_light);
-						vector_normalize(&(light->direction));
-						vector_normalize(&normal);
-
-						matrix_t normal_world;
-						matrix_transpose(&(device->transform.worldInv), &normal_world);
-						vector_t cnormal;
-						matrix_apply(&cnormal, &normal, &(normal_world));
-
-						IUINT32 cc = device_texture_read(device, u, v);
-						float diffuse = vector_dotproduct(&(light->direction), &cnormal);
-						if (diffuse >= 0)
-						{
-							int texture_R = Get_R(cc);
-							int texture_G = Get_G(cc);
-							int texture_B = Get_B(cc);
-
-							int diffuse_R = texture_R * diffuse * light->energy.r;
-							int diffuse_G = texture_G * diffuse * light->energy.g;
-							int diffuse_B = texture_B * diffuse * light->energy.b;
-
-							framebuffer[x] = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B) ;
-						}
-						else
-						{
-							framebuffer[x] = 0;
-						}
-					}
-					else
-					{
-						IUINT32 cc = device_texture_read(device, u, v);
-						framebuffer[x] = cc;
-					}
+				else if (render_state == RENDER_STATE_TEXTURE) {
+					framebuffer[x] = shader_normal_texture(device, &(scanline->v));
+				}
+				else if (render_state == RENDER_STATE_LAMBERT_LIGHT_TEXTURE){ 
+					framebuffer[x] = shader_texture_lambert_light(device, &(scanline->v));
 				}
 			}
 		}
@@ -379,7 +415,7 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 	transform_homogenize(&device->transform, &p3, &c3);
 
 	// 纹理或者色彩绘制
-	if (render_state & (RENDER_STATE_TEXTURE | RENDER_STATE_COLOR)) {
+	if (render_state != 0) {
 		vertex_t t1 = *v1, t2 = *v2, t3 = *v3;
 		trapezoid_t traps[2];
 		int n;
@@ -401,8 +437,7 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 		if (n >= 1) device_render_trap(device, &traps[0]);
 		if (n >= 2) device_render_trap(device, &traps[1]);
 	}
-
-	if (render_state & RENDER_STATE_WIREFRAME) {		// 线框绘制
+	else if (render_state == RENDER_STATE_WIREFRAME) {		// 线框绘制
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, device->foreground);
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p3.x, (int)p3.y, device->foreground);
 		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
@@ -528,19 +563,6 @@ static void dispatch_key_event(WPARAM wKey)
 			break;
 		}
 
-		case VK_F2:
-		{
-			if (g_pRenderDevice->function_state & FUNC_STATE_PARA_LIGHT)
-			{
-				g_pRenderDevice->function_state &= ~(FUNC_STATE_PARA_LIGHT);
-			}
-			else
-			{
-				g_pRenderDevice->function_state |= FUNC_STATE_PARA_LIGHT;
-				function_default_para_light(g_pRenderDevice);
-			};
-		}
-
 		default:
 			break;
 	}
@@ -663,7 +685,7 @@ int main(void)
 	device_t device;
 	g_pRenderDevice = &device;
 
-	int states[] = { RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_WIREFRAME };
+	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE };
 	int indicator = 0;
 	int kbhit = 0;
 	float alpha = 0;
@@ -679,7 +701,8 @@ int main(void)
 	camera_at_zero(&device, 0, 0, 0);
 
 	init_texture(&device);
-	device.render_state = RENDER_STATE_TEXTURE;
+
+	function_default_para_light(g_pRenderDevice);
 
 	while (screen_exit == 0 && screen_keys[VK_ESCAPE] == 0) {
 		screen_dispatch();
@@ -694,7 +717,7 @@ int main(void)
 		if (screen_keys[VK_SPACE]) {
 			if (kbhit == 0) {
 				kbhit = 1;
-				if (++indicator >= 3) indicator = 0;
+				if (++indicator >= 4) indicator = 0;
 				device.render_state = states[indicator];
 			}
 		}	else {
