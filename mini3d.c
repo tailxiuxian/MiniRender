@@ -52,16 +52,17 @@ typedef struct {
 	IUINT32 foreground;         // 线框颜色
 	int function_state;			// 功能状态
 
+	// Uniform
 	para_light_source_t para_light;
 	point_t eye;
 }	device_t;
 
 static device_t* g_pRenderDevice;
 
-#define RENDER_STATE_WIREFRAME      0		// 渲染线框
-#define RENDER_STATE_TEXTURE        1		// 渲染纹理
-#define RENDER_STATE_COLOR          2		// 渲染颜色
-#define RENDER_STATE_LAMBERT_LIGHT_TEXTURE 4 // 兰伯特光照
+#define RENDER_STATE_WIREFRAME      1		// 渲染线框
+#define RENDER_STATE_TEXTURE        2		// 渲染纹理
+#define RENDER_STATE_COLOR          4		// 渲染颜色
+#define RENDER_STATE_LAMBERT_LIGHT_TEXTURE 8 // 兰伯特光照
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
 #define FUNC_STATE_PARA_LIGHT		2		// 平行光照
@@ -242,9 +243,8 @@ IUINT32 device_texture_read(const device_t *device, float u, float v) {
 	return device->texture[y][x];
 }
 
-
 //=====================================================================
-// 渲染实现
+// 着色器
 //=====================================================================
 
 IUINT32 Get_R(IUINT32 color)
@@ -262,18 +262,23 @@ IUINT32 Get_B(IUINT32 color)
 	return color & 0x000000FF;
 }
 
-//=====================================================================
-// 片元渲染器
-//=====================================================================
-
-typedef IUINT32(*func_pixel_shader)(device_t* device, vertex_t* vertex);
+typedef void(*func_vertex_shader)(device_t* device, vertex_t* vertex, point_t* output);
+typedef void(*func_pixel_shader)(device_t* device, vertex_t* vertex, IUINT32* color);
 
 typedef struct {
 	IUINT32 RenderState;
+	func_vertex_shader p_vertex_shader;
 	func_pixel_shader p_pixel_shader;
 } RenderComponent;
 
-IUINT32 shader_normal_color(device_t* device, vertex_t* vertex)
+// 顶点着色器
+void shader_vertex_normal_mvp(device_t* device, vertex_t* vertex, point_t* output)
+{
+	transform_apply(&device->transform, output, &(vertex->pos));
+}
+
+// 片元着色器
+void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -286,20 +291,20 @@ IUINT32 shader_normal_color(device_t* device, vertex_t* vertex)
 	R = CMID(R, 0, 255);
 	G = CMID(G, 0, 255);
 	B = CMID(B, 0, 255);
-	return (R << 16) | (G << 8) | (B);
+	*(color) = (R << 16) | (G << 8) | (B);
 }
 
-IUINT32 shader_normal_texture(device_t* device, vertex_t* vertex)
+void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
-	return device_texture_read(device, u, v);
+	*(color) = device_texture_read(device, u, v);
 }
 
-IUINT32 shader_texture_lambert_light(device_t* device, vertex_t* vertex)
+void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -328,19 +333,54 @@ IUINT32 shader_texture_lambert_light(device_t* device, vertex_t* vertex)
 		int diffuse_G = texture_G * diffuse * light->energy.g;
 		int diffuse_B = texture_B * diffuse * light->energy.b;
 
-		return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 	}
 	else
 	{
-		return 0;
+		*(color) = 0;
 	}
 }
 
-RenderComponent g_RenderComponent[3] = {
-	{ RENDER_STATE_COLOR, shader_normal_color },
-	{ RENDER_STATE_TEXTURE, shader_normal_texture },
-	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_texture_lambert_light },
+#define MAX_RENDER_STATE 4
+
+RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
+	{ RENDER_STATE_WIREFRAME, shader_vertex_normal_mvp, NULL },
+	{ RENDER_STATE_TEXTURE, shader_vertex_normal_mvp, shader_pixel_normal_texture },
+	{ RENDER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
+	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
 };
+
+func_pixel_shader get_pixel_shader(device_t* device)
+{
+	int i;
+	for (i = 0; i < MAX_RENDER_STATE; i++)
+	{
+		if (device->render_state == g_RenderComponent[i].RenderState)
+		{
+			return g_RenderComponent[i].p_pixel_shader;
+		}
+	}
+
+	return NULL;
+}
+
+func_vertex_shader get_vertex_shader(device_t* device)
+{
+	int i;
+	for (i = 0; i < MAX_RENDER_STATE; i++)
+	{
+		if (device->render_state == g_RenderComponent[i].RenderState)
+		{
+			return g_RenderComponent[i].p_vertex_shader;
+		}
+	}
+
+	return NULL;
+}
+
+//=====================================================================
+// 渲染实现
+//=====================================================================
 
 // 绘制扫描线
 void device_draw_scanline(device_t *device, scanline_t *scanline) {
@@ -357,14 +397,10 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 			if (rhw >= zbuffer[x]) {	
 				float w = 1.0f / rhw;
 				zbuffer[x] = rhw;
-				if (render_state == RENDER_STATE_COLOR) {
-					framebuffer[x] = shader_normal_color(device, &(scanline->v));
-				}
-				else if (render_state == RENDER_STATE_TEXTURE) {
-					framebuffer[x] = shader_normal_texture(device, &(scanline->v));
-				}
-				else if (render_state == RENDER_STATE_LAMBERT_LIGHT_TEXTURE){ 
-					framebuffer[x] = shader_texture_lambert_light(device, &(scanline->v));
+				func_pixel_shader p_shader = get_pixel_shader(device);
+				if (p_shader)
+				{
+					p_shader(device, &(scanline->v), &(framebuffer[x]));
 				}
 			}
 		}
@@ -395,10 +431,13 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 	point_t p1, p2, p3, c1, c2, c3;
 	int render_state = device->render_state;
 
-	// 按照 Transform 变化
-	transform_apply(&device->transform, &c1, &v1->pos);
-	transform_apply(&device->transform, &c2, &v2->pos);
-	transform_apply(&device->transform, &c3, &v3->pos);
+	func_vertex_shader p_shader = get_vertex_shader(device);
+	if (p_shader)
+	{
+		p_shader(device, v1, &c1);
+		p_shader(device, v2, &c2);
+		p_shader(device, v3, &c3);
+	}
 
 	// 背面剔除
 	if (function_cull_back(device, &c1, &c2, &c3) != 0) return;
@@ -437,7 +476,8 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 		if (n >= 1) device_render_trap(device, &traps[0]);
 		if (n >= 2) device_render_trap(device, &traps[1]);
 	}
-	else if (render_state == RENDER_STATE_WIREFRAME) {		// 线框绘制
+	
+	if (render_state == RENDER_STATE_WIREFRAME) {		// 线框绘制
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, device->foreground);
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p3.x, (int)p3.y, device->foreground);
 		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
@@ -604,6 +644,11 @@ void screen_update(void) {
 }
 
 
+//{ {  1, -1, 1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f }, { 0, 0,  1, 0 }, 1 },
+//{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ 0, 0,  1, 0 }, 1 },
+//{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+//{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+
 //=====================================================================
 // 主程序
 //=====================================================================
@@ -614,35 +659,33 @@ vertex_t mesh[24] = {
 	{ {  1,  1,  1, 1 }, { 1, 0 }, { 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
 
 	{ {  1, -1, -1, 1 }, { 0, 0 }, { 1.0f, 1.0f, 0.2f },{ 0, 0, -1, 0 }, 1 },
-	{ { -1, -1, -1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 1.0f },{ 0, 0, -1, 0 }, 1 },
-	{ { -1,  1, -1, 1 }, { 1, 1 }, { 1.0f, 0.3f, 0.3f },{ 0, 0, -1, 0 }, 1 },
-	{ {  1,  1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 0.3f },{ 0, 0, -1, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1, -1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 1.0f },{ 0, 0, -1, 0 }, 1 },
 
-	{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1, -1,  1, 1 },{ 0, 0 },{ 0.2f, 1.0f, 0.2f },{ -1, 0,  0, 0 }, 1 },
 	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f },{ -1, 0,  0, 0 }, 1 },
 	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ -1, 0,  0, 0 }, 1 },
-	{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 1, 0 },{ 0.2f, 0.2f, 1.0f },{ -1, 0,  0, 0 }, 1 },
 
-	{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
-	{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 0, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
 	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ 0, 1, 0, 0 }, 1 },
 	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f },{ 0, 1, 0, 0 }, 1 },
 
 	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f },{ 0, -1,  0, 0 }, 1 },
-	{ { 1, -1, -1, 1 },{ 0, 0 },{ 1.0f, 1.0f, 0.2f },{ 0, -1, 0, 0 }, 1 },
-	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f },{ 0, -1, 0, 0 }, 1 },
-	{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ 0, -1,  0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 0, 1 },{ 1.0f, 1.0f, 0.2f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1, -1, 1 },{ 1, 1 },{ 0.2f, 1.0f, 1.0f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1,  1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.2f },{ 0, -1,  0, 0 }, 1 },
 
-	{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
-	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f },{ 1, 0, 0, 0 }, 1 },
-	{ { 1, -1, -1, 1 },{ 0, 0 },{ 1.0f, 1.0f, 0.2f },{ 1, 0, 0, 0 }, 1 },
-	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f },{ 1, 0,  0, 0 }, 1 },
+	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 1, 1 },{ 1.0f, 1.0f, 0.2f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 0.2f },{ 1, 0,  0, 0 }, 1 },
 };
 
 void draw_plane(device_t *device, int a, int b, int c, int d) {
 	vertex_t p1 = mesh[a], p2 = mesh[b], p3 = mesh[c], p4 = mesh[d];
-	p1.tc.u = 0, p1.tc.v = 0, p2.tc.u = 0, p2.tc.v = 1;
-	p3.tc.u = 1, p3.tc.v = 1, p4.tc.u = 1, p4.tc.v = 0;
 	device_draw_primitive(device, &p1, &p2, &p3);
 	device_draw_primitive(device, &p3, &p4, &p1);
 }
@@ -654,7 +697,7 @@ void draw_box(device_t *device, float theta) {
 	matrix_inverse(&m, &(device->transform.worldInv));
 	transform_update(&device->transform);
 	draw_plane(device, 0, 1, 2, 3);
-	draw_plane(device, 4, 7, 6, 5);
+	draw_plane(device, 4, 5, 6, 7);
 	draw_plane(device, 8, 9, 10, 11);
 	draw_plane(device, 12, 13, 14, 15);
 	draw_plane(device, 16, 17, 18, 19);

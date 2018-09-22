@@ -7,7 +7,16 @@
 //=====================================================================
 typedef struct { float r, g, b; } color_t;
 typedef struct { float u, v; } texcoord_t;
-typedef struct { point_t pos; texcoord_t tc; color_t color; point_t normal; float rhw; } vertex_t;
+
+// attribute
+typedef struct vertex_t{
+	point_t pos; 
+	texcoord_t tc; 
+	color_t color; 
+	vector_t normal;
+	vector_t view;
+	float rhw; 
+}vertex_t;
 
 typedef struct { vertex_t v, v1, v2; } edge_t;
 typedef struct { float top, bottom; edge_t left, right; } trapezoid_t;
