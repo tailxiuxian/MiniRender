@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <assert.h>
 
 #include <windows.h>
 #include <tchar.h>
@@ -26,147 +25,10 @@
 #include "mathlib.h"
 #include "transform.h"
 #include "geometry.h"
-
-//=====================================================================
-// 渲染设备
-//=====================================================================
-
-typedef struct {
-	color_t energy;
-	vector_t direction; //光向量
-} para_light_source_t;
-
-typedef struct {
-	transform_t transform;      // 坐标变换器
-	int width;                  // 窗口宽度
-	int height;                 // 窗口高度
-	IUINT32 **framebuffer;      // 像素缓存：framebuffer[y] 代表第 y行
-	float **zbuffer;            // 深度缓存：zbuffer[y] 为第 y行指针
-	IUINT32 **texture;          // 纹理：同样是每行索引
-	int tex_width;              // 纹理宽度
-	int tex_height;             // 纹理高度
-	float max_u;                // 纹理最大宽度：tex_width - 1
-	float max_v;                // 纹理最大高度：tex_height - 1
-	int render_state;           // 渲染状态
-	IUINT32 background;         // 背景颜色
-	IUINT32 foreground;         // 线框颜色
-	int function_state;			// 功能状态
-
-	// Attribute
-	vertex_t* vertex_array;
-
-	// Uniform
-	para_light_source_t para_light;
-	point_t eye;
-}	device_t;
+#include "device.h"
+#include "renderstate.h"
 
 static device_t* g_pRenderDevice;
-
-#define RENDER_STATE_WIREFRAME      1		// 渲染线框
-#define RENDER_STATE_TEXTURE        2		// 渲染纹理
-#define RENDER_STATE_COLOR          4		// 渲染颜色
-#define RENDER_STATE_LAMBERT_LIGHT_TEXTURE 8 // 兰伯特光照
-
-#define FUNC_STATE_CULL_BACK		1		// 背部剔除
-#define FUNC_STATE_PARA_LIGHT		2		// 平行光照
-
-
-// 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
-void device_init(device_t *device, int width, int height, void *fb) {
-	int need = sizeof(void*) * (height * 2 + 1024) + width * height * 8;
-	char *ptr = (char*)malloc(need + 64);
-	char *framebuf, *zbuf;
-	int j;
-	assert(ptr);
-	device->framebuffer = (IUINT32**)ptr;
-	device->zbuffer = (float**)(ptr + sizeof(void*) * height);
-	ptr += sizeof(void*) * height * 2;
-	device->texture = (IUINT32**)ptr;
-	ptr += sizeof(void*) * 1024;
-	framebuf = (char*)ptr;
-	zbuf = (char*)ptr + width * height * 4;
-	ptr += width * height * 8;
-	if (fb != NULL) framebuf = (char*)fb;
-	for (j = 0; j < height; j++) {
-		device->framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
-		device->zbuffer[j] = (float*)(zbuf + width * 4 * j);
-	}
-	device->texture[0] = (IUINT32*)ptr;
-	device->texture[1] = (IUINT32*)(ptr + 16);
-	memset(device->texture[0], 0, 64);
-	device->tex_width = 2;
-	device->tex_height = 2;
-	device->max_u = 1.0f;
-	device->max_v = 1.0f;
-	device->width = width;
-	device->height = height;
-	device->background = 0xc0c0c0;
-	device->foreground = 0;
-	transform_init(&device->transform, width, height);
-	device->render_state = RENDER_STATE_WIREFRAME;
-	device->function_state = 0;
-}
-
-// 删除设备
-void device_destroy(device_t *device) {
-	if (device->framebuffer) 
-		free(device->framebuffer);
-	device->framebuffer = NULL;
-	device->zbuffer = NULL;
-	device->texture = NULL;
-}
-
-// 设置当前纹理
-void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) {
-	char *ptr = (char*)bits;
-	int j;
-	assert(w <= 1024 && h <= 1024);
-	for (j = 0; j < h; ptr += pitch, j++) 	// 重新计算每行纹理的指针
-		device->texture[j] = (IUINT32*)ptr;
-	device->tex_width = w;
-	device->tex_height = h;
-	device->max_u = (float)(w - 1);
-	device->max_v = (float)(h - 1);
-}
-
-// 清空 framebuffer 和 zbuffer
-void device_clear(device_t *device, int mode) {
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {
-		IUINT32 *dst = device->framebuffer[y];
-		IUINT32 cc = (height - 1 - y) * 230 / (height - 1);
-		cc = (cc << 16) | (cc << 8) | cc;
-		if (mode == 0) cc = device->background;
-		for (x = device->width; x > 0; dst++, x--) dst[0] = cc;
-	}
-	for (y = 0; y < device->height; y++) {
-		float *dst = device->zbuffer[y];
-		for (x = device->width; x > 0; dst++, x--) dst[0] = 0.0f;
-	}
-}
-
-//=====================================================================
-// 功能区域
-//=====================================================================
-int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
-{
-	if (device->function_state & FUNC_STATE_CULL_BACK)
-	{
-		vector_t dirPrimitive, vec1, vec2;
-
-		vector_sub(&vec1, p2, p1);
-		vector_sub(&vec2, p3, p2);
-		vector_crossproduct(&dirPrimitive, &vec1, &vec2);
-
-		static vector_t dirView = { 0,0,-1,1 };
-		if (vector_dotproduct(&dirPrimitive, &dirView) > 0)
-		{
-			return 1;
-		}
-	}
-
-	return 0;
-}
 
 void function_default_para_light(device_t* device)
 {
@@ -232,18 +94,6 @@ void device_draw_line(device_t *device, int x1, int y1, int x2, int y2, IUINT32 
 			device_pixel(device, x2, y2, c);
 		}
 	}
-}
-
-// 根据坐标读取纹理
-IUINT32 device_texture_read(const device_t *device, float u, float v) {
-	int x, y;
-	u = u * device->max_u;
-	v = v * device->max_v;
-	x = (int)(u + 0.5f);
-	y = (int)(v + 0.5f);
-	x = CMID(x, 0, device->tex_width - 1);
-	y = CMID(y, 0, device->tex_height - 1);
-	return device->texture[y][x];
 }
 
 //=====================================================================
@@ -689,11 +539,6 @@ vertex_t mesh[24] = {
 
 #define TRIANGLES 1
 
-void set_vertex_attrib_pointer(device_t* device,vertex_t* vertex_array)
-{
-	device->vertex_array = vertex_array;
-}
-
 // 简单期间 索引全部用int
 void draw_elements(device_t* device,IUINT8 uElementType, IUINT32 uElementCount, int* index)
 {	
@@ -730,6 +575,7 @@ void draw_box(device_t *device, float theta) {
 	transform_update(&device->transform);
 
 	int index[36] = { 0,1,2, 2,3,0, 4,5,6, 6,7,4, 8,9,10, 10,11,8, 12,13,14, 14,15,12, 16,17,18, 18,19,16, 20,21,22, 22,23,20 };
+	device_set_vertex_attrib_pointer(device, mesh);
 	draw_elements(device, TRIANGLES, 12, index);
 }
 

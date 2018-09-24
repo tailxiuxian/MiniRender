@@ -77,6 +77,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="device.c" />
     <ClCompile Include="geometry.c" />
     <ClCompile Include="mathlib.c" />
     <ClCompile Include="mini3d.c" />
@@ -84,8 +85,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="basetype.h" />
+    <ClInclude Include="device.h" />
     <ClInclude Include="geometry.h" />
     <ClInclude Include="mathlib.h" />
+    <ClInclude Include="renderstate.h" />
     <ClInclude Include="transform.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

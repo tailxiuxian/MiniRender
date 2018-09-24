@@ -5,11 +5,14 @@
     <ClCompile Include="mathlib.c" />
     <ClCompile Include="transform.c" />
     <ClCompile Include="geometry.c" />
+    <ClCompile Include="device.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mathlib.h" />
     <ClInclude Include="transform.h" />
     <ClInclude Include="geometry.h" />
     <ClInclude Include="basetype.h" />
+    <ClInclude Include="device.h" />
+    <ClInclude Include="renderstate.h" />
   </ItemGroup>
 </Project>
