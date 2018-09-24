@@ -52,6 +52,9 @@ typedef struct {
 	IUINT32 foreground;         // 线框颜色
 	int function_state;			// 功能状态
 
+	// Attribute
+	vertex_t* vertex_array;
+
 	// Uniform
 	para_light_source_t para_light;
 	point_t eye;
@@ -684,24 +687,50 @@ vertex_t mesh[24] = {
 	{ { 1, -1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 0.2f },{ 1, 0,  0, 0 }, 1 },
 };
 
+#define TRIANGLES 1
+
+void set_vertex_attrib_pointer(device_t* device,vertex_t* vertex_array)
+{
+	device->vertex_array = vertex_array;
+}
+
+// 简单期间 索引全部用int
+void draw_elements(device_t* device,IUINT8 uElementType, IUINT32 uElementCount, int* index)
+{	
+	if (TRIANGLES == uElementType)
+	{
+		if (device->vertex_array == NULL)
+		{
+			return;
+		}
+
+		int i;
+		for (i = 0; i < uElementCount; i++)
+		{
+			vertex_t p1 = device->vertex_array[index[i * 3]];
+			vertex_t p2 = device->vertex_array[index[i * 3 + 1]];
+			vertex_t p3 = device->vertex_array[index[i * 3 + 2]];
+			device_draw_primitive(device, &p1, &p2, &p3);
+		}
+	}
+}
+
 void draw_plane(device_t *device, int a, int b, int c, int d) {
 	vertex_t p1 = mesh[a], p2 = mesh[b], p3 = mesh[c], p4 = mesh[d];
 	device_draw_primitive(device, &p1, &p2, &p3);
 	device_draw_primitive(device, &p3, &p4, &p1);
 }
 
+// application stage
 void draw_box(device_t *device, float theta) {
 	matrix_t m;
 	matrix_set_rotate(&m, -1, -0.5, 1, theta);
 	device->transform.world = m;
 	matrix_inverse(&m, &(device->transform.worldInv));
 	transform_update(&device->transform);
-	draw_plane(device, 0, 1, 2, 3);
-	draw_plane(device, 4, 5, 6, 7);
-	draw_plane(device, 8, 9, 10, 11);
-	draw_plane(device, 12, 13, 14, 15);
-	draw_plane(device, 16, 17, 18, 19);
-	draw_plane(device, 20, 21, 22, 23);
+
+	int index[36] = { 0,1,2, 2,3,0, 4,5,6, 6,7,4, 8,9,10, 10,11,8, 12,13,14, 14,15,12, 16,17,18, 18,19,16, 20,21,22, 22,23,20 };
+	draw_elements(device, TRIANGLES, 12, index);
 }
 
 void camera_at_zero(device_t *device, float x, float y, float z) {
