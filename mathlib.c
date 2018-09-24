@@ -68,6 +68,14 @@ void vector_normalize(vector_t *v) {
 	}
 }
 
+// 矢量乘以标量
+void vector_scale(vector_t *z, float scale)
+{
+	z->x = z->x * scale;
+	z->y = z->y * scale;
+	z->z = z->z * scale;
+}
+
 // c = a + b
 void matrix_add(matrix_t *c, const matrix_t *a, const matrix_t *b) {
 	int i, j;

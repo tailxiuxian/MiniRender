@@ -31,6 +31,8 @@ void vector_interp(vector_t *z, const vector_t *x1, const vector_t *x2, float t)
 //  ∏¡øπÈ“ªªØ
 void vector_normalize(vector_t *v);
 
+void vector_scale(vector_t *z, float scale);
+
 // c = a + b
 void matrix_add(matrix_t *c, const matrix_t *a, const matrix_t *b);
 

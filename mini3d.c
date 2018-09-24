@@ -130,6 +130,16 @@ void shader_vertex_normal_mvp(device_t* device, const vertex_t* vertex, point_t*
 	transform_apply(&device->transform, output, &(vertex->pos));
 }
 
+void shader_vertex_phong_mvp(device_t* device, const vertex_t* vertex, point_t* output)
+{
+	transform_apply(&device->transform, output, &(vertex->pos));
+
+	point_t posInWorld;
+	matrix_apply(&posInWorld, &(vertex->pos), &(device->transform.world));
+
+	vector_sub(&vertex->view, &device->eye, &posInWorld);
+}
+
 // 片元着色器
 void shader_pixel_normal_color(device_t* device, const vertex_t* vertex, IUINT32* color)
 {
@@ -194,13 +204,75 @@ void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex
 	}
 }
 
-#define MAX_RENDER_STATE 4
+void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, IUINT32* color)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float u = vertex->tc.u * w;
+	float v = vertex->tc.v * w;
+
+	vector_t normal = vertex->normal;
+	para_light_source_t* light = &(device->para_light);
+	vector_normalize(&(light->direction));
+	vector_normalize(&normal);
+
+	matrix_t normal_world;
+	matrix_transpose(&(device->transform.worldInv), &normal_world);
+	vector_t cnormal;
+	matrix_apply(&cnormal, &normal, &(normal_world));
+
+	IUINT32 cc = device_texture_read(device, u, v);
+	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
+	if (diffuse >= 0)
+	{
+		IUINT32 texture_R = Get_R(cc);
+		IUINT32 texture_G = Get_G(cc);
+		IUINT32 texture_B = Get_B(cc);
+
+		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * light->energy.r);
+		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
+		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
+
+		vector_t temp = cnormal;
+		vector_scale(&temp, 2 * diffuse);
+
+		vector_t vec_spec;
+		vector_sub(&vec_spec, &temp, &light->direction);
+
+		float spec = vector_dotproduct(&vertex->view, &vec_spec);
+		if (spec >= 0)
+		{
+			float kD = 0.7f, kS = 1.5f; // uniform
+
+			IUINT32 spec_R = (IUINT32)(texture_R * spec * light->energy.r);
+			IUINT32 spec_G = (IUINT32)(texture_G * spec * light->energy.g);
+			IUINT32 spec_B = (IUINT32)(texture_B * spec * light->energy.b);
+
+			diffuse_R = CMID(diffuse_R * kD + spec_R * kS, 0, 255);
+			diffuse_G = CMID(diffuse_G * kD + spec_G * kS, 0, 255);
+			diffuse_B = CMID(diffuse_B * kD + spec_B * kS, 0, 255);
+
+			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+		}
+		else
+		{
+			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+		}
+	}
+	else
+	{
+		*(color) = 0;
+	}
+}
+
+#define MAX_RENDER_STATE 5
 
 RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
 	{ RENDER_STATE_WIREFRAME, shader_vertex_normal_mvp, NULL },
 	{ RENDER_STATE_TEXTURE, shader_vertex_normal_mvp, shader_pixel_normal_texture },
 	{ RENDER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
 	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
+	{ RENDER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_phong_light },
 };
 
 func_pixel_shader get_pixel_shader(device_t* device)
@@ -603,7 +675,7 @@ int main(void)
 	device_t device;
 	g_pRenderDevice = &device;
 
-	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE };
+	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE };
 	int indicator = 0;
 	int kbhit = 0;
 	float alpha = 0;
@@ -635,7 +707,7 @@ int main(void)
 		if (screen_keys[VK_SPACE]) {
 			if (kbhit == 0) {
 				kbhit = 1;
-				if (++indicator >= 4) indicator = 0;
+				if (++indicator >= MAX_RENDER_STATE) indicator = 0;
 				device.render_state = states[indicator];
 			}
 		}	else {
