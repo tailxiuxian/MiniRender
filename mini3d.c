@@ -115,8 +115,8 @@ IUINT32 Get_B(IUINT32 color)
 	return color & 0x000000FF;
 }
 
-typedef void(*func_vertex_shader)(device_t* device, vertex_t* vertex, point_t* output);
-typedef void(*func_pixel_shader)(device_t* device, vertex_t* vertex, IUINT32* color);
+typedef void(*func_vertex_shader)(device_t* device, const vertex_t* vertex, point_t* output);
+typedef void(*func_pixel_shader)(device_t* device, const vertex_t* vertex, IUINT32* color);
 
 typedef struct {
 	IUINT32 RenderState;
@@ -125,13 +125,13 @@ typedef struct {
 } RenderComponent;
 
 // 顶点着色器
-void shader_vertex_normal_mvp(device_t* device, vertex_t* vertex, point_t* output)
+void shader_vertex_normal_mvp(device_t* device, const vertex_t* vertex, point_t* output)
 {
 	transform_apply(&device->transform, output, &(vertex->pos));
 }
 
 // 片元着色器
-void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* color)
+void shader_pixel_normal_color(device_t* device, const vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -147,7 +147,7 @@ void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* colo
 	*(color) = (R << 16) | (G << 8) | (B);
 }
 
-void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* color)
+void shader_pixel_normal_texture(device_t* device, const vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -157,7 +157,7 @@ void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* co
 	*(color) = device_texture_read(device, u, v);
 }
 
-void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUINT32* color)
+void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -178,13 +178,13 @@ void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUIN
 	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
 	if (diffuse >= 0)
 	{
-		int texture_R = Get_R(cc);
-		int texture_G = Get_G(cc);
-		int texture_B = Get_B(cc);
+		IUINT32 texture_R = Get_R(cc);
+		IUINT32 texture_G = Get_G(cc);
+		IUINT32 texture_B = Get_B(cc);
 
-		int diffuse_R = texture_R * diffuse * light->energy.r;
-		int diffuse_G = texture_G * diffuse * light->energy.g;
-		int diffuse_B = texture_B * diffuse * light->energy.b;
+		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * light->energy.r);
+		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
+		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
 
 		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 	}
@@ -549,7 +549,7 @@ void draw_elements(device_t* device,IUINT8 uElementType, IUINT32 uElementCount, 
 			return;
 		}
 
-		int i;
+		IUINT32 i;
 		for (i = 0; i < uElementCount; i++)
 		{
 			vertex_t p1 = device->vertex_array[index[i * 3]];
