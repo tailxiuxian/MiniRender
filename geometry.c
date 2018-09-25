@@ -19,7 +19,7 @@ void vertex_interp(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float t)
 	y->color.b = interp(x1->color.b, x2->color.b, t);
 	y->rhw = interp(x1->rhw, x2->rhw, t);
 	vector_interp(&y->normal, &x1->normal, &x2->normal, t);
-	vector_interp(&y->view, &y->normal, &y->normal, t);
+	vector_interp(&y->eye_view, &x1->eye_view, &x2->eye_view, t);
 }
 
 void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float w) {
@@ -38,10 +38,10 @@ void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float 
 	y->normal.y = (x2->normal.y - x1->normal.y) * inv;
 	y->normal.z = (x2->normal.z - x1->normal.z) * inv;
 	y->normal.w = (x2->normal.w - x1->normal.w) * inv;
-	y->view.x = (x2->view.x - x1->view.x) * inv;
-	y->view.y = (x2->view.y - x1->view.y) * inv;
-	y->view.z = (x2->view.z - x1->view.z) * inv;
-	y->view.w = (x2->view.w - x1->view.w) * inv;
+	y->eye_view.x = (x2->eye_view.x - x1->eye_view.x) * inv;
+	y->eye_view.y = (x2->eye_view.y - x1->eye_view.y) * inv;
+	y->eye_view.z = (x2->eye_view.z - x1->eye_view.z) * inv;
+	y->eye_view.w = (x2->eye_view.w - x1->eye_view.w) * inv;
 }
 
 void vertex_add(vertex_t *y, const vertex_t *x) {
@@ -59,10 +59,10 @@ void vertex_add(vertex_t *y, const vertex_t *x) {
 	y->normal.y += x->normal.y;
 	y->normal.z += x->normal.z;
 	y->normal.w += x->normal.w;
-	y->view.x += x->view.x;
-	y->view.y += x->view.y;
-	y->view.z += x->view.z;
-	y->view.w += x->view.w;
+	y->eye_view.x += x->eye_view.x;
+	y->eye_view.y += x->eye_view.y;
+	y->eye_view.z += x->eye_view.z;
+	y->eye_view.w += x->eye_view.w;
 }
 
 // 根据三角形生成 0-2 个梯形，并且返回合法梯形的数量

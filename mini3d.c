@@ -36,8 +36,8 @@ void function_default_para_light(device_t* device)
 	device->para_light.energy.g = 1.0;
 	device->para_light.energy.b = 1.0;
 	device->para_light.direction.x = 1.0;
-	device->para_light.direction.y = 2.0;
-	device->para_light.direction.z = 3.0;
+	device->para_light.direction.y = 1.0;
+	device->para_light.direction.z = 1.0;
 	device->para_light.direction.w = 0.0;
 }
 
@@ -136,8 +136,7 @@ void shader_vertex_phong_mvp(device_t* device, const vertex_t* vertex, point_t* 
 
 	point_t posInWorld;
 	matrix_apply(&posInWorld, &(vertex->pos), &(device->transform.world));
-
-	vector_sub(&vertex->view, &device->eye, &posInWorld);
+	vector_sub(&vertex->eye_view, &device->eye, &posInWorld);
 }
 
 // 片元着色器
@@ -186,7 +185,7 @@ void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex
 
 	IUINT32 cc = device_texture_read(device, u, v);
 	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
-	if (diffuse >= 0)
+	if (diffuse >= 0.001)
 	{
 		IUINT32 texture_R = Get_R(cc);
 		IUINT32 texture_G = Get_G(cc);
@@ -195,6 +194,10 @@ void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex
 		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * light->energy.r);
 		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
 		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
+
+		diffuse_R = CMID(diffuse_R, 0, 255);
+		diffuse_G = CMID(diffuse_G, 0, 255);
+		diffuse_B = CMID(diffuse_B, 0, 255);
 
 		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 	}
@@ -223,7 +226,7 @@ void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, 
 
 	IUINT32 cc = device_texture_read(device, u, v);
 	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
-	if (diffuse >= 0)
+	if (diffuse >= 0.001)
 	{
 		IUINT32 texture_R = Get_R(cc);
 		IUINT32 texture_G = Get_G(cc);
@@ -233,17 +236,19 @@ void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, 
 		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
 		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
 
-		vector_t temp = cnormal;
-		vector_scale(&temp, 2 * diffuse);
+		vector_t vec_spec = cnormal;
+		vector_scale(&vec_spec, 2 * diffuse);
+		vector_sub(&vec_spec, &vec_spec, &light->direction);
+		vector_normalize(&vec_spec);
 
-		vector_t vec_spec;
-		vector_sub(&vec_spec, &temp, &light->direction);
+		vector_t eye_view = vertex->eye_view;
+		vector_normalize(&eye_view);
 
-		float spec = vector_dotproduct(&vertex->view, &vec_spec);
+		float kD = 1.0f, kS = 2.0f; // uniform
+
+		float spec = vector_dotproduct(&eye_view, &vec_spec);
 		if (spec >= 0)
 		{
-			float kD = 0.7f, kS = 1.5f; // uniform
-
 			IUINT32 spec_R = (IUINT32)(texture_R * spec * light->energy.r);
 			IUINT32 spec_G = (IUINT32)(texture_G * spec * light->energy.g);
 			IUINT32 spec_B = (IUINT32)(texture_B * spec * light->energy.b);
@@ -256,6 +261,10 @@ void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, 
 		}
 		else
 		{
+			diffuse_R = CMID(diffuse_R * kD, 0, 255);
+			diffuse_G = CMID(diffuse_G * kD, 0, 255);
+			diffuse_B = CMID(diffuse_B * kD, 0, 255);
+
 			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 		}
 	}
@@ -272,7 +281,7 @@ RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
 	{ RENDER_STATE_TEXTURE, shader_vertex_normal_mvp, shader_pixel_normal_texture },
 	{ RENDER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
 	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
-	{ RENDER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_phong_light },
+	{ RENDER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_phong_mvp, shader_pixel_texture_phong_light },
 };
 
 func_pixel_shader get_pixel_shader(device_t* device)
@@ -641,7 +650,11 @@ void draw_plane(device_t *device, int a, int b, int c, int d) {
 // application stage
 void draw_box(device_t *device, float theta) {
 	matrix_t m;
-	matrix_set_rotate(&m, -1, -0.5, 1, theta);
+	
+	//matrix_set_rotate(&m, -1, -0.5, 1, theta);
+	
+	matrix_set_rotate(&m, 0, 0, 1, theta);
+
 	device->transform.world = m;
 	matrix_inverse(&m, &(device->transform.worldInv));
 	transform_update(&device->transform);

@@ -14,7 +14,7 @@ typedef struct vertex_t{
 	texcoord_t tc; 
 	color_t color; 
 	vector_t normal;
-	vector_t view;
+	vector_t eye_view;
 	float rhw; 
 }vertex_t;
 
