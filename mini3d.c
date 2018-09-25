@@ -650,11 +650,7 @@ void draw_plane(device_t *device, int a, int b, int c, int d) {
 // application stage
 void draw_box(device_t *device, float theta) {
 	matrix_t m;
-	
-	//matrix_set_rotate(&m, -1, -0.5, 1, theta);
-	
-	matrix_set_rotate(&m, 0, 0, 1, theta);
-
+	matrix_set_rotate(&m, -1, -0.5, 1, theta);
 	device->transform.world = m;
 	matrix_inverse(&m, &(device->transform.worldInv));
 	transform_update(&device->transform);
@@ -662,6 +658,56 @@ void draw_box(device_t *device, float theta) {
 	int index[36] = { 0,1,2, 2,3,0, 4,5,6, 6,7,4, 8,9,10, 10,11,8, 12,13,14, 14,15,12, 16,17,18, 18,19,16, 20,21,22, 22,23,20 };
 	device_set_vertex_attrib_pointer(device, mesh);
 	draw_elements(device, TRIANGLES, 12, index);
+}
+
+void draw_title(device_t *device)
+{
+	TCHAR title[128];
+	title[0] = _T('\0');
+	switch (device->render_state)
+	{
+		case RENDER_STATE_WIREFRAME:
+		{
+			lstrcat(title, _T("Line Mode"));
+			break;
+		}
+		case RENDER_STATE_TEXTURE:
+		{
+			lstrcat(title, _T("Texture Mode"));
+			break;
+		}
+		case RENDER_STATE_COLOR:
+		{
+			lstrcat(title, _T("Color Mode"));
+			break;
+		}
+		case RENDER_STATE_LAMBERT_LIGHT_TEXTURE:
+		{
+			lstrcat(title, _T("Lamber Light Mode"));
+			break;
+		}
+		case RENDER_STATE_PHONG_LIGHT_TEXTURE:
+		{
+			lstrcat(title, _T("Phong Light Mode"));
+			break;
+		}
+		default:
+			lstrcat(title, _T("No Find  Mode"));
+			break;
+	}
+
+	switch (device->function_state)
+	{
+		case FUNC_STATE_CULL_BACK:
+		{
+			lstrcat(title, _T(" - culling back"));
+			break;
+		}
+		default:
+			break;
+	}
+
+	SetWindowText(screen_handle, title);
 }
 
 void camera_at_zero(device_t *device, float x, float y, float z) {
@@ -722,12 +768,14 @@ int main(void)
 				kbhit = 1;
 				if (++indicator >= MAX_RENDER_STATE) indicator = 0;
 				device.render_state = states[indicator];
+
 			}
 		}	else {
 			kbhit = 0;
 		}
 
 		draw_box(&device, alpha);
+		draw_title(&device);
 		screen_update();
 		Sleep(1);
 	}
