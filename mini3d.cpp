@@ -14,6 +14,7 @@
 //   2015.8.12  skywind  adjust interfaces for clearity 
 // 
 //=====================================================================
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -27,6 +28,8 @@
 #include "geometry.h"
 #include "device.h"
 #include "renderstate.h"
+#include "GLView.h"
+#include "GDIView.h"
 
 static device_t* g_pRenderDevice;
 
@@ -115,8 +118,8 @@ IUINT32 Get_B(IUINT32 color)
 	return color & 0x000000FF;
 }
 
-typedef void(*func_vertex_shader)(device_t* device, const vertex_t* vertex, point_t* output);
-typedef void(*func_pixel_shader)(device_t* device, const vertex_t* vertex, IUINT32* color);
+typedef void(*func_vertex_shader)(device_t* device, vertex_t* vertex, point_t* output);
+typedef void(*func_pixel_shader)(device_t* device, vertex_t* vertex, IUINT32* color);
 
 typedef struct {
 	IUINT32 RenderState;
@@ -125,12 +128,12 @@ typedef struct {
 } RenderComponent;
 
 // 顶点着色器
-void shader_vertex_normal_mvp(device_t* device, const vertex_t* vertex, point_t* output)
+void shader_vertex_normal_mvp(device_t* device, vertex_t* vertex, point_t* output)
 {
 	transform_apply(&device->transform, output, &(vertex->pos));
 }
 
-void shader_vertex_phong_mvp(device_t* device, const vertex_t* vertex, point_t* output)
+void shader_vertex_phong_mvp(device_t* device, vertex_t* vertex, point_t* output)
 {
 	transform_apply(&device->transform, output, &(vertex->pos));
 
@@ -139,8 +142,10 @@ void shader_vertex_phong_mvp(device_t* device, const vertex_t* vertex, point_t* 
 	vector_sub(&vertex->eye_view, &device->eye, &posInWorld);
 }
 
+unsigned char default_alpha = 127;
+
 // 片元着色器
-void shader_pixel_normal_color(device_t* device, const vertex_t* vertex, IUINT32* color)
+void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -153,20 +158,29 @@ void shader_pixel_normal_color(device_t* device, const vertex_t* vertex, IUINT32
 	R = CMID(R, 0, 255);
 	G = CMID(G, 0, 255);
 	B = CMID(B, 0, 255);
+
+#if USE_GDI_VIEW
 	*(color) = (R << 16) | (G << 8) | (B);
+#else
+	*(color) = (R << 24) | (G << 16) | (B << 8) | (default_alpha);
+#endif
 }
 
-void shader_pixel_normal_texture(device_t* device, const vertex_t* vertex, IUINT32* color)
+void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
+#if USE_GDI_VIEW
 	*(color) = device_texture_read(device, u, v);
+#else
+	*(color) = (device_texture_read(device, u, v) << 8) | (default_alpha);
+#endif
 }
 
-void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex, IUINT32* color)
+void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -199,7 +213,11 @@ void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex
 		diffuse_G = CMID(diffuse_G, 0, 255);
 		diffuse_B = CMID(diffuse_B, 0, 255);
 
+#if USE_GDI_VIEW
 		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+#else
+		*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+#endif
 	}
 	else
 	{
@@ -207,7 +225,7 @@ void shader_pixel_texture_lambert_light(device_t* device, const vertex_t* vertex
 	}
 }
 
-void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, IUINT32* color)
+void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT32* color)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -257,7 +275,11 @@ void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, 
 			diffuse_G = CMID(diffuse_G * kD + spec_G * kS, 0, 255);
 			diffuse_B = CMID(diffuse_B * kD + spec_B * kS, 0, 255);
 
+#ifdef USE_GDI_VIEW
 			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+#else
+			*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+#endif
 		}
 		else
 		{
@@ -265,7 +287,11 @@ void shader_pixel_texture_phong_light(device_t* device, const vertex_t* vertex, 
 			diffuse_G = CMID(diffuse_G * kD, 0, 255);
 			diffuse_B = CMID(diffuse_B * kD, 0, 255);
 
+#ifdef USE_GDI_VIEW
 			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+#else
+			*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+#endif
 		}
 	}
 	else
@@ -360,8 +386,8 @@ void device_render_trap(device_t *device, trapezoid_t *trap) {
 }
 
 // 根据 render_state 绘制原始三角形
-void device_draw_primitive(device_t *device, const vertex_t *v1, 
-	const vertex_t *v2, const vertex_t *v3) {
+void device_draw_primitive(device_t *device, vertex_t *v1, 
+	vertex_t *v2, vertex_t *v3) {
 	point_t p1, p2, p3, c1, c2, c3;
 	int render_state = device->render_state;
 
@@ -417,166 +443,6 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
 	}
 }
-
-
-//=====================================================================
-// Win32 窗口及图形绘制：为 device 提供一个 DibSection 的 FB
-//=====================================================================
-int screen_w, screen_h, screen_exit = 0;
-int screen_mx = 0, screen_my = 0, screen_mb = 0;
-int screen_keys[512];	// 当前键盘按下状态
-static HWND screen_handle = NULL;		// 主窗口 HWND
-static HDC screen_dc = NULL;			// 配套的 HDC
-static HBITMAP screen_hb = NULL;		// DIB
-static HBITMAP screen_ob = NULL;		// 老的 BITMAP
-unsigned char *screen_fb = NULL;		// frame buffer
-long screen_pitch = 0;
-
-int screen_init(int w, int h, const TCHAR *title);	// 屏幕初始化
-int screen_close(void);								// 关闭屏幕
-void screen_dispatch(void);							// 处理消息
-void screen_update(void);							// 显示 FrameBuffer
-
-// win32 event handler
-static LRESULT screen_events(HWND, UINT, WPARAM, LPARAM);	
-
-#ifdef _MSC_VER
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "user32.lib")
-#endif
-
-// 初始化窗口并设置标题
-int screen_init(int w, int h, const TCHAR *title) {
-	WNDCLASS wc = { CS_BYTEALIGNCLIENT, (WNDPROC)screen_events, 0, 0, 0, 
-		NULL, NULL, NULL, NULL, _T("SCREEN3.1415926") };
-	BITMAPINFO bi = { { sizeof(BITMAPINFOHEADER), w, -h, 1, 32, BI_RGB, 
-		w * h * 4, 0, 0, 0, 0 }  };
-	RECT rect = { 0, 0, w, h };
-	int wx, wy, sx, sy;
-	LPVOID ptr;
-	HDC hDC;
-
-	screen_close();
-
-	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-	wc.hInstance = GetModuleHandle(NULL);
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	if (!RegisterClass(&wc)) return -1;
-
-	screen_handle = CreateWindow(_T("SCREEN3.1415926"), title,
-		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-		0, 0, 0, 0, NULL, NULL, wc.hInstance, NULL);
-	if (screen_handle == NULL) return -2;
-
-	screen_exit = 0;
-	hDC = GetDC(screen_handle);
-	screen_dc = CreateCompatibleDC(hDC);
-	ReleaseDC(screen_handle, hDC);
-
-	screen_hb = CreateDIBSection(screen_dc, &bi, DIB_RGB_COLORS, &ptr, 0, 0);
-	if (screen_hb == NULL) return -3;
-
-	screen_ob = (HBITMAP)SelectObject(screen_dc, screen_hb);
-	screen_fb = (unsigned char*)ptr;
-	screen_w = w;
-	screen_h = h;
-	screen_pitch = w * 4;
-	
-	AdjustWindowRect(&rect, GetWindowLong(screen_handle, GWL_STYLE), 0);
-	wx = rect.right - rect.left;
-	wy = rect.bottom - rect.top;
-	sx = (GetSystemMetrics(SM_CXSCREEN) - wx) / 2;
-	sy = (GetSystemMetrics(SM_CYSCREEN) - wy) / 2;
-	if (sy < 0) sy = 0;
-	SetWindowPos(screen_handle, NULL, sx, sy, wx, wy, (SWP_NOCOPYBITS | SWP_NOZORDER | SWP_SHOWWINDOW));
-	SetForegroundWindow(screen_handle);
-
-	ShowWindow(screen_handle, SW_NORMAL);
-	screen_dispatch();
-
-	memset(screen_keys, 0, sizeof(int) * 512);
-	memset(screen_fb, 0, w * h * 4);
-
-	return 0;
-}
-
-int screen_close(void) {
-	if (screen_dc) {
-		if (screen_ob) { 
-			SelectObject(screen_dc, screen_ob); 
-			screen_ob = NULL; 
-		}
-		DeleteDC(screen_dc);
-		screen_dc = NULL;
-	}
-	if (screen_hb) { 
-		DeleteObject(screen_hb); 
-		screen_hb = NULL; 
-	}
-	if (screen_handle) { 
-		CloseWindow(screen_handle); 
-		screen_handle = NULL; 
-	}
-	return 0;
-}
-
-static void dispatch_key_event(WPARAM wKey)
-{
-	switch (wKey) {
-		case VK_F1:
-		{
-			if (g_pRenderDevice->function_state & FUNC_STATE_CULL_BACK)
-			{
-				g_pRenderDevice->function_state &= ~(FUNC_STATE_CULL_BACK);
-			}
-			else
-			{
-				g_pRenderDevice->function_state |= FUNC_STATE_CULL_BACK;
-			}
-
-			break;
-		}
-
-		default:
-			break;
-	}
-}
-
-static LRESULT screen_events(HWND hWnd, UINT msg, 
-	WPARAM wParam, LPARAM lParam) {
-	switch (msg) {
-	case WM_CLOSE: 
-		screen_exit = 1; 
-		break;
-	case WM_KEYDOWN: 
-		screen_keys[wParam & 511] = 1; 
-		break;
-	case WM_KEYUP: 
-		screen_keys[wParam & 511] = 0; 
-		dispatch_key_event(wParam);
-		break;
-	default: 
-		return DefWindowProc(hWnd, msg, wParam, lParam);
-	}
-	return 0;
-}
-
-void screen_dispatch(void) {
-	MSG msg;
-	while (1) {
-		if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) break;
-		if (!GetMessage(&msg, NULL, 0, 0)) break;
-		DispatchMessage(&msg);
-	}
-}
-
-void screen_update(void) {
-	HDC hDC = GetDC(screen_handle);
-	BitBlt(hDC, 0, 0, screen_w, screen_h, screen_dc, 0, 0, SRCCOPY);
-	ReleaseDC(screen_handle, hDC);
-	screen_dispatch();
-}
-
 
 //{ {  1, -1, 1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f }, { 0, 0,  1, 0 }, 1 },
 //{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ 0, 0,  1, 0 }, 1 },
@@ -660,56 +526,6 @@ void draw_box(device_t *device, float theta) {
 	draw_elements(device, TRIANGLES, 12, index);
 }
 
-void draw_title(device_t *device)
-{
-	TCHAR title[128];
-	title[0] = _T('\0');
-	switch (device->render_state)
-	{
-		case RENDER_STATE_WIREFRAME:
-		{
-			lstrcat(title, _T("Line Mode"));
-			break;
-		}
-		case RENDER_STATE_TEXTURE:
-		{
-			lstrcat(title, _T("Texture Mode"));
-			break;
-		}
-		case RENDER_STATE_COLOR:
-		{
-			lstrcat(title, _T("Color Mode"));
-			break;
-		}
-		case RENDER_STATE_LAMBERT_LIGHT_TEXTURE:
-		{
-			lstrcat(title, _T("Lamber Light Mode"));
-			break;
-		}
-		case RENDER_STATE_PHONG_LIGHT_TEXTURE:
-		{
-			lstrcat(title, _T("Phong Light Mode"));
-			break;
-		}
-		default:
-			lstrcat(title, _T("No Find  Mode"));
-			break;
-	}
-
-	switch (device->function_state)
-	{
-		case FUNC_STATE_CULL_BACK:
-		{
-			lstrcat(title, _T(" - culling back"));
-			break;
-		}
-		default:
-			break;
-	}
-
-	SetWindowText(screen_handle, title);
-}
-
 void camera_at_zero(device_t *device, float x, float y, float z) {
 	point_t eye = { x, y, z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
 	matrix_set_lookat(&device->transform.view, &eye, &at, &up);
@@ -729,56 +545,103 @@ void init_texture(device_t *device) {
 	device_set_texture(device, texture, 256 * 4, 256, 256);
 }
 
+static int keys_state[512];	// 当前键盘按下状态
+static int key_quit = 0;
+
+int get_key_state(int keyCode)
+{
+	if (keyCode >= 0 && keyCode < 512)
+	{
+		return keys_state[keyCode];
+	}
+	return 0;
+}
+
+void set_key_state(int keyCode, int value)
+{
+	if (keyCode >= 0 && keyCode < 512)
+	{
+		keys_state[keyCode] = value;
+	}
+}
+
+int get_key_quit()
+{
+	return key_quit;
+}
+
+void set_key_quit()
+{
+	key_quit = 1;
+}
+
 int main(void)
 {
-	device_t device;
-	g_pRenderDevice = &device;
-
 	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE };
 	int indicator = 0;
 	int kbhit = 0;
 	float alpha = 0;
 	float pos = 5;
+	int window_w = 512;
+	int window_h = 512;
 
-	TCHAR *title = _T("Mini3d (software render tutorial) - ")
-		_T("Left/Right: rotation, Up/Down: forward/backward, Space: switch state");
+	memset(keys_state, 0, sizeof(int) * 512);
 
-	if (screen_init(800, 600, title)) 
+#ifdef USE_GDI_VIEW
+	if (screen_init(window_w, window_h))
 		return -1;
+#else
+	initGLView(window_w, window_h);
+#endif
 
-	device_init(&device, 800, 600, screen_fb);
-	camera_at_zero(&device, 0, 0, 0);
+	device_t* device = get_device_inst();
+	device_init(device, window_w, window_h, get_screen_fb());
+	camera_at_zero(device, 0, 0, 0);
+	init_texture(device);
+	function_default_para_light(device);
 
-	init_texture(&device);
+	while (get_key_quit() == 0) {
 
-	function_default_para_light(g_pRenderDevice);
-
-	while (screen_exit == 0 && screen_keys[VK_ESCAPE] == 0) {
+#ifdef USE_GDI_VIEW
 		screen_dispatch();
-		device_clear(&device, 1);
-		camera_at_zero(&device, pos, pos, pos);
+#endif		
+		device_clear(device, 1);
+		camera_at_zero(device, pos, pos, pos);
 		
-		if (screen_keys[VK_UP]) pos -= 0.01f;
-		if (screen_keys[VK_DOWN]) pos += 0.01f;
-		if (screen_keys[VK_LEFT]) alpha += 0.01f;
-		if (screen_keys[VK_RIGHT]) alpha -= 0.01f;
+		if (get_key_state(MOVE_NEAR)) pos -= 0.01f;
+		if (get_key_state(MOVE_FAR)) pos += 0.01f;
+		if (get_key_state(ROTATE_LEFT)) alpha += 0.01f;
+		if (get_key_state(ROTATE_RIGHT)) alpha -= 0.01f;
 
-		if (screen_keys[VK_SPACE]) {
+		if (get_key_state(CHANGE_MODE)) {
 			if (kbhit == 0) {
 				kbhit = 1;
 				if (++indicator >= MAX_RENDER_STATE) indicator = 0;
-				device.render_state = states[indicator];
+				device->render_state = states[indicator];
 
 			}
 		}	else {
 			kbhit = 0;
 		}
 
-		draw_box(&device, alpha);
-		draw_title(&device);
+		draw_box(device, alpha);
+
+#ifdef USE_GDI_VIEW
+		draw_screen_title(device);
 		screen_update();
+#else		
+		updateFrameBufferData(device->framebuffer);
+		drawGLView();
+#endif
 		Sleep(1);
 	}
+
+#ifdef USE_GDI_VIEW
+
+#else
+	destroyGLView();
+#endif
+
 	return 0;
 }
 

@@ -1,11 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="mini3d.c" />
-    <ClCompile Include="mathlib.c" />
-    <ClCompile Include="transform.c" />
-    <ClCompile Include="geometry.c" />
-    <ClCompile Include="device.c" />
+    <ClCompile Include="GLView.cpp" />
+    <ClCompile Include="device.cpp" />
+    <ClCompile Include="geometry.cpp" />
+    <ClCompile Include="mathlib.cpp" />
+    <ClCompile Include="mini3d.cpp" />
+    <ClCompile Include="transform.cpp" />
+    <ClCompile Include="GDIView.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mathlib.h" />
@@ -14,5 +16,7 @@
     <ClInclude Include="basetype.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="renderstate.h" />
+    <ClInclude Include="GLView.h" />
+    <ClInclude Include="GDIView.h" />
   </ItemGroup>
 </Project>
