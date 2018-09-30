@@ -159,7 +159,7 @@ void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* colo
 	G = CMID(G, 0, 255);
 	B = CMID(B, 0, 255);
 
-#if USE_GDI_VIEW
+#ifdef USE_GDI_VIEW
 	*(color) = (R << 16) | (G << 8) | (B);
 #else
 	*(color) = (R << 24) | (G << 16) | (B << 8) | (default_alpha);
@@ -173,7 +173,7 @@ void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* co
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
-#if USE_GDI_VIEW
+#ifdef USE_GDI_VIEW
 	*(color) = device_texture_read(device, u, v);
 #else
 	*(color) = (device_texture_read(device, u, v) << 8) | (default_alpha);
@@ -213,7 +213,7 @@ void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUIN
 		diffuse_G = CMID(diffuse_G, 0, 255);
 		diffuse_B = CMID(diffuse_B, 0, 255);
 
-#if USE_GDI_VIEW
+#ifdef USE_GDI_VIEW
 		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 #else
 		*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
