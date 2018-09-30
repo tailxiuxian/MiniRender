@@ -253,11 +253,15 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 		vector_t eye_view = vertex->eye_view;
 		vector_normalize(&eye_view);
 
-		float kD = 1.0f, kS = 2.0f; // uniform
+		vector_t matrial = device->uniform[3];
+		float kD = matrial.x;
+		float kS = matrial.y;
+		float kQ = matrial.z;
 
 		float spec = vector_dotproduct(&eye_view, &vec_spec);
 		if (spec >= 0)
 		{
+			spec = pow(spec, kQ);
 			IUINT32 spec_R = (IUINT32)(texture_R * spec * energy.x);
 			IUINT32 spec_G = (IUINT32)(texture_G * spec * energy.y);
 			IUINT32 spec_B = (IUINT32)(texture_B * spec * energy.z);
@@ -435,11 +439,6 @@ void device_draw_primitive(device_t *device, vertex_t *v1,
 	}
 }
 
-//{ {  1, -1, 1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f }, { 0, 0,  1, 0 }, 1 },
-//{ { -1, -1,  1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f },{ 0, 0,  1, 0 }, 1 },
-//{ { -1,  1,  1, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-//{ { 1,  1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-
 //=====================================================================
 // 主程序
 //=====================================================================
@@ -542,6 +541,9 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		device_set_uniform_value(device, 1, &direction);
 
 		device_set_uniform_value(device, 2, &eye); // 视点位置
+
+		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
+		device_set_uniform_value(device, 3, &matrial);
 	}
 }
 
@@ -595,8 +597,8 @@ int main(void)
 	int kbhit = 0;
 	float alpha = 0;
 	float pos = 5;
-	int window_w = 512;
-	int window_h = 512;
+	int window_w = WINDOW_SIZE;
+	int window_h = WINDOW_SIZE;
 
 	memset(keys_state, 0, sizeof(int) * 512);
 
