@@ -142,7 +142,7 @@ void shader_vertex_phong_mvp(device_t* device, vertex_t* vertex, point_t* output
 	vector_sub(&vertex->eye_view, &device->eye, &posInWorld);
 }
 
-unsigned char default_alpha = 127;
+unsigned char default_alpha = 255;
 
 // 片元着色器
 void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* color)
@@ -631,6 +631,7 @@ int main(void)
 		screen_update();
 #else		
 		updateFrameBufferData(device->framebuffer);
+		drawGLTitle(device);
 		drawGLView();
 #endif
 		Sleep(1);

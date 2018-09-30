@@ -313,3 +313,53 @@ void updateFrameBufferData(unsigned int** frameBuffer)
 	glBindTexture(GL_TEXTURE_2D, gl_texture);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture_size_w, texture_size_h, GL_RGBA, GL_UNSIGNED_BYTE, gl_texture_data);
 }
+
+void drawGLTitle(device_t *device)
+{
+	string GLTitle;
+	GLTitle += "GLView ";
+	switch (device->render_state)
+	{
+	case RENDER_STATE_WIREFRAME:
+	{
+		GLTitle += "Line Mode ";
+		break;
+	}
+	case RENDER_STATE_TEXTURE:
+	{
+		GLTitle += "Texture Mode ";
+		break;
+	}
+	case RENDER_STATE_COLOR:
+	{
+		GLTitle += "Color Mode ";
+		break;
+	}
+	case RENDER_STATE_LAMBERT_LIGHT_TEXTURE:
+	{
+		GLTitle += "Lamber Light Mode ";
+		break;
+	}
+	case RENDER_STATE_PHONG_LIGHT_TEXTURE:
+	{
+		GLTitle += "Phong Light Mode ";
+		break;
+	}
+	default:
+		GLTitle += "No Find  Mode ";
+		break;
+	}
+
+	switch (device->function_state)
+	{
+	case FUNC_STATE_CULL_BACK:
+	{
+		GLTitle += " - culling back";
+		break;
+	}
+	default:
+		break;
+	}
+
+	glfwSetWindowTitle(gl_window, GLTitle.c_str());
+}
