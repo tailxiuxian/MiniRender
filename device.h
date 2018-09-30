@@ -14,6 +14,8 @@ typedef struct {
 	vector_t direction; //光向量
 } para_light_source_t;
 
+#define MAX_UNIFORM_NUM 128
+
 typedef struct {
 	transform_t transform;      // 坐标变换器
 	int width;                  // 窗口宽度
@@ -34,8 +36,7 @@ typedef struct {
 	vertex_t* vertex_array; // 应该申请一份显存 实现内存到显存的copy 用index管理顶点存储
 
 	// Uniform
-	para_light_source_t para_light;
-	point_t eye;
+	vector_t uniform[MAX_UNIFORM_NUM];
 }	device_t;
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
@@ -46,6 +47,8 @@ void device_set_texture(device_t *device, void *bits, long pitch, int w, int h);
 void device_clear(device_t *device, int mode); // 清空 framebuffer 和 zbuffer						   
 IUINT32 device_texture_read(const device_t *device, float u, float v); // 根据坐标读取纹理
 void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array); // 设置顶点数据
+
+void device_set_uniform_value(device_t* device, int iUniformIndex,vector_t* pVec);
 
 int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3); // 背部剔除
 

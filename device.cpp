@@ -106,6 +106,14 @@ void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array)
 	device->vertex_array = vertex_array;
 }
 
+void device_set_uniform_value(device_t* device, int iUniformIndex, vector_t* pVec)
+{
+	if (iUniformIndex >= 0 && iUniformIndex < MAX_UNIFORM_NUM)
+	{
+		device->uniform[iUniformIndex] = *(pVec);
+	}
+}
+
 int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
 {
 	if (device->function_state & FUNC_STATE_CULL_BACK)

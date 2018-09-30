@@ -31,19 +31,6 @@
 #include "GLView.h"
 #include "GDIView.h"
 
-static device_t* g_pRenderDevice;
-
-void function_default_para_light(device_t* device)
-{
-	device->para_light.energy.r = 1.0;
-	device->para_light.energy.g = 1.0;
-	device->para_light.energy.b = 1.0;
-	device->para_light.direction.x = 1.0;
-	device->para_light.direction.y = 1.0;
-	device->para_light.direction.z = 1.0;
-	device->para_light.direction.w = 0.0;
-}
-
 //=====================================================================
 // 绘制区域
 //=====================================================================
@@ -139,7 +126,9 @@ void shader_vertex_phong_mvp(device_t* device, vertex_t* vertex, point_t* output
 
 	point_t posInWorld;
 	matrix_apply(&posInWorld, &(vertex->pos), &(device->transform.world));
-	vector_sub(&vertex->eye_view, &device->eye, &posInWorld);
+
+	point_t eye = device->uniform[2];
+	vector_sub(&vertex->eye_view, &eye, &posInWorld);
 }
 
 unsigned char default_alpha = 255;
@@ -188,8 +177,8 @@ void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUIN
 	float v = vertex->tc.v * w;
 
 	vector_t normal = vertex->normal;
-	para_light_source_t* light = &(device->para_light);
-	vector_normalize(&(light->direction));
+	vector_t direction = device->uniform[1];
+	vector_normalize(&direction);
 	vector_normalize(&normal);
 
 	matrix_t normal_world;
@@ -198,16 +187,17 @@ void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUIN
 	matrix_apply(&cnormal, &normal, &(normal_world));
 
 	IUINT32 cc = device_texture_read(device, u, v);
-	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
+	float diffuse = vector_dotproduct(&direction, &cnormal);
 	if (diffuse >= 0.001)
 	{
 		IUINT32 texture_R = Get_R(cc);
 		IUINT32 texture_G = Get_G(cc);
 		IUINT32 texture_B = Get_B(cc);
 
-		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * light->energy.r);
-		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
-		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
+		vector_t energy = device->uniform[0];
+		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * energy.x);
+		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * energy.y);
+		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * energy.z);
 
 		diffuse_R = CMID(diffuse_R, 0, 255);
 		diffuse_G = CMID(diffuse_G, 0, 255);
@@ -233,8 +223,8 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 	float v = vertex->tc.v * w;
 
 	vector_t normal = vertex->normal;
-	para_light_source_t* light = &(device->para_light);
-	vector_normalize(&(light->direction));
+	vector_t direction = device->uniform[1];
+	vector_normalize(&direction);
 	vector_normalize(&normal);
 
 	matrix_t normal_world;
@@ -243,20 +233,21 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 	matrix_apply(&cnormal, &normal, &(normal_world));
 
 	IUINT32 cc = device_texture_read(device, u, v);
-	float diffuse = vector_dotproduct(&(light->direction), &cnormal);
+	float diffuse = vector_dotproduct(&direction, &cnormal);
 	if (diffuse >= 0.001)
 	{
 		IUINT32 texture_R = Get_R(cc);
 		IUINT32 texture_G = Get_G(cc);
 		IUINT32 texture_B = Get_B(cc);
 
-		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * light->energy.r);
-		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * light->energy.g);
-		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * light->energy.b);
+		vector_t energy = device->uniform[0];
+		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * energy.x);
+		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * energy.y);
+		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * energy.z);
 
 		vector_t vec_spec = cnormal;
 		vector_scale(&vec_spec, 2 * diffuse);
-		vector_sub(&vec_spec, &vec_spec, &light->direction);
+		vector_sub(&vec_spec, &vec_spec, &direction);
 		vector_normalize(&vec_spec);
 
 		vector_t eye_view = vertex->eye_view;
@@ -267,9 +258,9 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 		float spec = vector_dotproduct(&eye_view, &vec_spec);
 		if (spec >= 0)
 		{
-			IUINT32 spec_R = (IUINT32)(texture_R * spec * light->energy.r);
-			IUINT32 spec_G = (IUINT32)(texture_G * spec * light->energy.g);
-			IUINT32 spec_B = (IUINT32)(texture_B * spec * light->energy.b);
+			IUINT32 spec_R = (IUINT32)(texture_R * spec * energy.x);
+			IUINT32 spec_G = (IUINT32)(texture_G * spec * energy.y);
+			IUINT32 spec_B = (IUINT32)(texture_B * spec * energy.z);
 
 			diffuse_R = CMID(diffuse_R * kD + spec_R * kS, 0, 255);
 			diffuse_G = CMID(diffuse_G * kD + spec_G * kS, 0, 255);
@@ -528,10 +519,32 @@ void draw_box(device_t *device, float theta) {
 
 void camera_at_zero(device_t *device, float x, float y, float z) {
 	point_t eye = { x, y, z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
+	
+	// upload matrix to GPU
 	matrix_set_lookat(&device->transform.view, &eye, &at, &up);
 	transform_update(&device->transform);
-	device->eye = eye;
+	
+	//upload uniform
+	if (device->render_state == RENDER_STATE_LAMBERT_LIGHT_TEXTURE)
+	{
+		vector_t energy = { 1.0,1.0,1.0,0.0 };
+		device_set_uniform_value(device, 0, &energy); // 入射光强
+
+		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
+		device_set_uniform_value(device, 1, &direction);
+	}
+	else if (device->render_state == RENDER_STATE_PHONG_LIGHT_TEXTURE)
+	{
+		vector_t energy = { 1.0,1.0,1.0,0.0 };
+		device_set_uniform_value(device, 0, &energy); // 入射光强
+
+		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
+		device_set_uniform_value(device, 1, &direction);
+
+		device_set_uniform_value(device, 2, &eye); // 视点位置
+	}
 }
+
 
 void init_texture(device_t *device) {
 	static IUINT32 texture[256][256];
@@ -598,16 +611,12 @@ int main(void)
 	device_init(device, window_w, window_h, get_screen_fb());
 	camera_at_zero(device, 0, 0, 0);
 	init_texture(device);
-	function_default_para_light(device);
 
 	while (get_key_quit() == 0) {
 
 #ifdef USE_GDI_VIEW
 		screen_dispatch();
 #endif		
-		device_clear(device, 1);
-		camera_at_zero(device, pos, pos, pos);
-		
 		if (get_key_state(MOVE_NEAR)) pos -= 0.01f;
 		if (get_key_state(MOVE_FAR)) pos += 0.01f;
 		if (get_key_state(ROTATE_LEFT)) alpha += 0.01f;
@@ -623,6 +632,9 @@ int main(void)
 		}	else {
 			kbhit = 0;
 		}
+
+		device_clear(device, 1);
+		camera_at_zero(device, pos, pos, pos);
 
 		draw_box(device, alpha);
 

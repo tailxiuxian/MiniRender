@@ -5,7 +5,7 @@
 //=====================================================================
 // 几何计算：顶点、扫描线、边缘、矩形、步长计算
 //=====================================================================
-typedef struct { float r, g, b; } color_t;
+typedef struct { float r, g, b, a; } color_t;
 typedef struct { float u, v; } texcoord_t;
 
 // attribute
