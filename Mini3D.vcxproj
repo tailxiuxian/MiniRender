@@ -86,6 +86,7 @@
     <ClCompile Include="GLView.cpp" />
     <ClCompile Include="mathlib.cpp" />
     <ClCompile Include="mini3d.cpp" />
+    <ClCompile Include="shader.cpp" />
     <ClCompile Include="transform.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +97,7 @@
     <ClInclude Include="GLView.h" />
     <ClInclude Include="mathlib.h" />
     <ClInclude Include="renderstate.h" />
+    <ClInclude Include="shader.h" />
     <ClInclude Include="transform.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

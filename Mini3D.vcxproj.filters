@@ -8,6 +8,7 @@
     <ClCompile Include="mini3d.cpp" />
     <ClCompile Include="transform.cpp" />
     <ClCompile Include="GDIView.cpp" />
+    <ClCompile Include="shader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mathlib.h" />
@@ -18,5 +19,6 @@
     <ClInclude Include="renderstate.h" />
     <ClInclude Include="GLView.h" />
     <ClInclude Include="GDIView.h" />
+    <ClInclude Include="shader.h" />
   </ItemGroup>
 </Project>

@@ -7,7 +7,9 @@
 #define RENDER_STATE_PHONG_LIGHT_TEXTURE 16 // PHONGπ‚’’
 
 //#define USE_GDI_VIEW
+
 #define WINDOW_SIZE 512
+#define MAX_RENDER_STATE 5
 
 #define MOVE_NEAR 0
 #define MOVE_FAR 1
