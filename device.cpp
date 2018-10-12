@@ -8,7 +8,7 @@
 
 // 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
 void device_init(device_t *device, int width, int height, void *fb) {
-	int need = sizeof(void*) * (height * 2 + 1024) + width * height * 8;
+	int need = sizeof(void*) * (height * 2 + 1024 * MAX_TEXTURE_NUM) + width * height * 8;
 	char *ptr = (char*)malloc(need + 64);
 	char *framebuf, *zbuf;
 	int j;
@@ -16,8 +16,12 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->framebuffer = (IUINT32**)ptr;
 	device->zbuffer = (float**)(ptr + sizeof(void*) * height);
 	ptr += sizeof(void*) * height * 2;
-	device->texture = (IUINT32**)ptr;
-	ptr += sizeof(void*) * 1024;
+
+	for (j = 0; j < MAX_TEXTURE_NUM; j++)
+	{
+		device->texture_array[j].texture = (IUINT32**)ptr;
+		ptr += sizeof(void*) * 1024;
+	}
 	
 	framebuf = (char*)ptr;
 	zbuf = (char*)ptr + width * height * 4;
@@ -31,13 +35,19 @@ void device_init(device_t *device, int width, int height, void *fb) {
 		device->framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
 		device->zbuffer[j] = (float*)(zbuf + width * 4 * j);
 	}
-	device->texture[0] = (IUINT32*)ptr;
-	device->texture[1] = (IUINT32*)(ptr + 16);
-	memset(device->texture[0], 0, 64);
-	device->tex_width = 2;
-	device->tex_height = 2;
-	device->max_u = 1.0f;
-	device->max_v = 1.0f;
+	
+	for (j = 0; j < MAX_TEXTURE_NUM; j++)
+	{
+		device->texture_array[j].texture[0] = (IUINT32*)ptr;
+		device->texture_array[j].texture[1] = (IUINT32*)(ptr + 16);
+		memset(device->texture_array[j].texture[0], 0, 64);
+		device->texture_array[j].width = 2;
+		device->texture_array[j].height = 2;
+		device->texture_array[j].max_u = 1.0f;
+		device->texture_array[j].max_v = 1.0f;
+		device->texture_array[j].is_used = false;
+	}
+	
 	device->width = width;
 	device->height = height;
 	device->background = 0xc0c0c0ff;
@@ -50,22 +60,30 @@ void device_init(device_t *device, int width, int height, void *fb) {
 void device_destroy(device_t *device) {
 	if (device->framebuffer)
 		free(device->framebuffer);
+	
 	device->framebuffer = NULL;
 	device->zbuffer = NULL;
-	device->texture = NULL;
+
+	for (int i = 0; i < MAX_TEXTURE_NUM; i++)
+	{
+		device->texture_array[i].texture = NULL;
+	}
 }
 
 // 设置当前纹理
-void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) {
+void device_set_texture(device_t *device, void *bits, long pitch, int w, int h, int texture_id) {
 	char *ptr = (char*)bits;
 	int j;
 	assert(w <= 1024 && h <= 1024);
 	for (j = 0; j < h; ptr += pitch, j++) 	// 重新计算每行纹理的指针
-		device->texture[j] = (IUINT32*)ptr;
-	device->tex_width = w;
-	device->tex_height = h;
-	device->max_u = (float)(w - 1);
-	device->max_v = (float)(h - 1);
+	{
+		device->texture_array[texture_id].texture[j] = (IUINT32*)ptr;
+	}
+		
+	device->texture_array[texture_id].width = w;
+	device->texture_array[texture_id].height = h;
+	device->texture_array[texture_id].max_u = (float)(w - 1);
+	device->texture_array[texture_id].max_v = (float)(h - 1);
 }
 
 // 清空 framebuffer 和 zbuffer
@@ -91,15 +109,15 @@ void device_clear(device_t *device, int mode) {
 }
 
 // 根据坐标读取纹理
-IUINT32 device_texture_read(const device_t *device, float u, float v) {
+IUINT32 device_texture_read(const device_t *device, float u, float v, int texture_id) {
 	int x, y;
-	u = u * device->max_u;
-	v = v * device->max_v;
+	u = u * device->texture_array[texture_id].max_u;
+	v = v * device->texture_array[texture_id].max_v;
 	x = (int)(u + 0.5f);
 	y = (int)(v + 0.5f);
-	x = CMID(x, 0, device->tex_width - 1);
-	y = CMID(y, 0, device->tex_height - 1);
-	return device->texture[y][x];
+	x = CMID(x, 0, device->texture_array[texture_id].width - 1);
+	y = CMID(y, 0, device->texture_array[texture_id].height - 1);
+	return device->texture_array[texture_id].texture[y][x];
 }
 
 void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array)
@@ -112,6 +130,28 @@ void device_set_uniform_value(device_t* device, int iUniformIndex, vector_t* pVe
 	if (iUniformIndex >= 0 && iUniformIndex < MAX_UNIFORM_NUM)
 	{
 		device->uniform[iUniformIndex] = *(pVec);
+	}
+}
+
+int device_gen_texture(device_t* device)
+{
+	for (int i = 0; i < MAX_TEXTURE_NUM; i++)
+	{
+		if (device->texture_array[i].is_used == false)
+		{
+			device->texture_array[i].is_used = true;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+void device_bind_texture(device_t* device, int texture_id)
+{
+	if (device->texture_array[texture_id].is_used == true)
+	{
+		device->texture_id = texture_id;
 	}
 }
 

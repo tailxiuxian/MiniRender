@@ -33,6 +33,10 @@
 #include "shader.h"
 #include "bmpReader.h"
 
+static int default_texture_id = 0;
+static int texture_bmp1 = 0;
+static int texture_bmp2 = 0;
+
 //=====================================================================
 // 绘制区域
 //=====================================================================
@@ -286,6 +290,8 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 
 		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
 		device_set_uniform_value(device, 1, &direction);
+
+		device_bind_texture(device, default_texture_id);
 	}
 	else if (device->render_state == RENDER_STATE_PHONG_LIGHT_TEXTURE)
 	{
@@ -299,28 +305,42 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 
 		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
 		device_set_uniform_value(device, 3, &matrial);
+
+		device_bind_texture(device, texture_bmp1);
+	}
+	else if (device->render_state == RENDER_STATE_TEXTURE)
+	{
+		device_bind_texture(device, texture_bmp2);
 	}
 }
 
 
 void init_texture(device_t *device) {
-	//long width, height;
-	//unsigned int* bmp_texture = read_bmp("../res/2.bmp", width, height);
-	//if (bmp_texture)
-	//{
-	//	printf("init_texture succ\n");
-	//}
-	//device_set_texture(device, bmp_texture, width * 4, width, height);
-
 	static IUINT32 texture[256][256];
 	int i, j;
 	for (j = 0; j < 256; j++) {
 		for (i = 0; i < 256; i++) {
 			int x = i / 32, y = j / 32;
-			texture[j][i] = ((x + y) & 1)? 0xffffffff : 0x3fbcefff;
+			texture[j][i] = ((x + y) & 1) ? 0xffffffff : 0x3fbcefff;
 		}
 	}
-	device_set_texture(device, texture, 256 * 4, 256, 256);
+	default_texture_id = device_gen_texture(device);
+	device_set_texture(device, texture, 256 * 4, 256, 256, default_texture_id);
+
+	long width, height;
+	unsigned int* bmp_texture = read_bmp("../res/1.bmp", width, height);
+	if (bmp_texture)
+	{
+		texture_bmp1 = device_gen_texture(device);
+		device_set_texture(device, bmp_texture, width * 4, width, height, texture_bmp1);
+	}
+
+	bmp_texture = read_bmp("../res/2.bmp", width, height);
+	if (bmp_texture)
+	{
+		texture_bmp2 = device_gen_texture(device);
+		device_set_texture(device, bmp_texture, width * 4, width, height, texture_bmp2);
+	}
 }
 
 static int keys_state[512];	// 当前键盘按下状态
