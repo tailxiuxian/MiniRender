@@ -231,7 +231,7 @@ void draw_screen_title(device_t *device)
 	}
 	case RENDER_STATE_LAMBERT_LIGHT_TEXTURE:
 	{
-		lstrcat(title, _T("Lamber Light Mode"));
+		lstrcat(title, _T("Lambert Light Mode"));
 		break;
 	}
 	case RENDER_STATE_PHONG_LIGHT_TEXTURE:

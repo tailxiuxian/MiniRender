@@ -31,6 +31,7 @@
 #include "GLView.h"
 #include "GDIView.h"
 #include "shader.h"
+#include "bmpReader.h"
 
 //=====================================================================
 // 绘制区域
@@ -303,6 +304,14 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 
 
 void init_texture(device_t *device) {
+	//long width, height;
+	//unsigned int* bmp_texture = read_bmp("../res/2.bmp", width, height);
+	//if (bmp_texture)
+	//{
+	//	printf("init_texture succ\n");
+	//}
+	//device_set_texture(device, bmp_texture, width * 4, width, height);
+
 	static IUINT32 texture[256][256];
 	int i, j;
 	for (j = 0; j < 256; j++) {

@@ -80,6 +80,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="bmpReader.cpp" />
     <ClCompile Include="device.cpp" />
     <ClCompile Include="GDIView.cpp" />
     <ClCompile Include="geometry.cpp" />
@@ -91,6 +92,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="basetype.h" />
+    <ClInclude Include="bmpReader.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="GDIView.h" />
     <ClInclude Include="geometry.h" />

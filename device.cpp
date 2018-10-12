@@ -18,6 +18,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	ptr += sizeof(void*) * height * 2;
 	device->texture = (IUINT32**)ptr;
 	ptr += sizeof(void*) * 1024;
+	
 	framebuf = (char*)ptr;
 	zbuf = (char*)ptr + width * height * 4;
 	ptr += width * height * 8;

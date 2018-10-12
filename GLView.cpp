@@ -337,7 +337,7 @@ void drawGLTitle(device_t *device)
 	}
 	case RENDER_STATE_LAMBERT_LIGHT_TEXTURE:
 	{
-		GLTitle += "Lamber Light Mode ";
+		GLTitle += "Lambert Light Mode ";
 		break;
 	}
 	case RENDER_STATE_PHONG_LIGHT_TEXTURE:
