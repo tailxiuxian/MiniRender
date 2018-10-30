@@ -10,6 +10,8 @@
     <ClCompile Include="GDIView.cpp" />
     <ClCompile Include="shader.cpp" />
     <ClCompile Include="bmpReader.cpp" />
+    <ClCompile Include="blend.cpp" />
+    <ClCompile Include="comm_func.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mathlib.h" />
@@ -22,5 +24,7 @@
     <ClInclude Include="GDIView.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="bmpReader.h" />
+    <ClInclude Include="blend.h" />
+    <ClInclude Include="comm_func.h" />
   </ItemGroup>
 </Project>

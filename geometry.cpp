@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "geometry.h"
 
 void vertex_rhw_init(vertex_t *v) {
@@ -8,6 +9,7 @@ void vertex_rhw_init(vertex_t *v) {
 	v->color.r *= rhw;
 	v->color.g *= rhw;
 	v->color.b *= rhw;
+	v->color.a *= rhw;
 }
 
 void vertex_interp(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float t) {
@@ -17,6 +19,7 @@ void vertex_interp(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float t)
 	y->color.r = interp(x1->color.r, x2->color.r, t);
 	y->color.g = interp(x1->color.g, x2->color.g, t);
 	y->color.b = interp(x1->color.b, x2->color.b, t);
+	y->color.a = interp(x1->color.a, x2->color.a, t);
 	y->rhw = interp(x1->rhw, x2->rhw, t);
 	vector_interp(&y->normal, &x1->normal, &x2->normal, t);
 	vector_interp(&y->eye_view, &x1->eye_view, &x2->eye_view, t);
@@ -33,6 +36,7 @@ void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float 
 	y->color.r = (x2->color.r - x1->color.r) * inv;
 	y->color.g = (x2->color.g - x1->color.g) * inv;
 	y->color.b = (x2->color.b - x1->color.b) * inv;
+	y->color.a = (x2->color.a - x1->color.a) * inv;
 	y->rhw = (x2->rhw - x1->rhw) * inv;
 	y->normal.x = (x2->normal.x - x1->normal.x) * inv;
 	y->normal.y = (x2->normal.y - x1->normal.y) * inv;
@@ -55,6 +59,7 @@ void vertex_add(vertex_t *y, const vertex_t *x) {
 	y->color.r += x->color.r;
 	y->color.g += x->color.g;
 	y->color.b += x->color.b;
+	y->color.a += x->color.a;
 	y->normal.x += x->normal.x;
 	y->normal.y += x->normal.y;
 	y->normal.z += x->normal.z;

@@ -22,6 +22,11 @@ typedef struct {
 #define MAX_TEXTURE_NUM 16
 
 typedef struct {
+	int srcState;
+	int dstState;
+} blendstate_t;
+
+typedef struct {
 	transform_t transform;      // 坐标变换器
 	int width;                  // 窗口宽度
 	int height;                 // 窗口高度
@@ -44,6 +49,9 @@ typedef struct {
 	// Texture ID
 	int texture_id;
 
+	// Blend State
+	blendstate_t blend_state;
+
 }	device_t;
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
@@ -59,6 +67,8 @@ void device_set_uniform_value(device_t* device, int iUniformIndex,vector_t* pVec
 
 int device_gen_texture(device_t* device);
 void device_bind_texture(device_t* device, int texture_id);
+
+void device_set_blend_state(device_t* device, blendstate_t blend_state);
 
 int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3); // 背部剔除
 

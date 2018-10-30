@@ -1,36 +1,16 @@
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "shader.h"
 #include "renderstate.h"
+#include "comm_func.h"
 
 typedef struct {
 	IUINT32 RenderState;
 	func_vertex_shader p_vertex_shader;
 	func_pixel_shader p_pixel_shader;
 } RenderComponent;
-
-
-IUINT32 Get_R(IUINT32 color)
-{
-	return (color >> 24) & 0x000000FF;
-}
-
-IUINT32 Get_G(IUINT32 color)
-{
-	return (color >> 16) & 0x000000FF;
-}
-
-IUINT32 Get_B(IUINT32 color)
-{
-	return (color >> 8) & 0x000000FF;
-}
-
-IUINT32 Get_A(IUINT32 color)
-{
-	return color & 0x000000FF;
-}
-
 
 // 顶点着色器
 void shader_vertex_normal_mvp(device_t* device, vertex_t* vertex, point_t* output)
@@ -52,7 +32,7 @@ void shader_vertex_phong_mvp(device_t* device, vertex_t* vertex, point_t* output
 unsigned char default_alpha = 255;
 
 // 片元着色器
-void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* color)
+IUINT32 shader_pixel_normal_color(device_t* device, vertex_t* vertex)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -67,13 +47,13 @@ void shader_pixel_normal_color(device_t* device, vertex_t* vertex, IUINT32* colo
 	B = CMID(B, 0, 255);
 
 #ifdef USE_GDI_VIEW
-	*(color) = (R << 16) | (G << 8) | (B);
+	return (R << 16) | (G << 8) | (B);
 #else
-	*(color) = (R << 24) | (G << 16) | (B << 8) | (default_alpha);
+	return (R << 24) | (G << 16) | (B << 8) | (default_alpha);
 #endif
 }
 
-void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* color)
+IUINT32 shader_pixel_normal_texture(device_t* device, vertex_t* vertex)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -86,13 +66,13 @@ void shader_pixel_normal_texture(device_t* device, vertex_t* vertex, IUINT32* co
 	IUINT32 texture_B = Get_B(cc);
 
 #ifdef USE_GDI_VIEW
-	*(color) = (texture_R << 16) | (texture_G << 8) | (texture_B);
+	return (texture_R << 16) | (texture_G << 8) | (texture_B);
 #else
-	*(color) = (texture_R << 24) | (texture_G << 16) | (texture_B << 8) | (default_alpha);
+	return (texture_R << 24) | (texture_G << 16) | (texture_B << 8) | (default_alpha);
 #endif
 }
 
-void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUINT32* color)
+IUINT32 shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -127,18 +107,18 @@ void shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex, IUIN
 		diffuse_B = CMID(diffuse_B, 0, 255);
 
 #ifdef USE_GDI_VIEW
-		*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+		return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 #else
-		*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+		return (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
 #endif
 	}
 	else
 	{
-		*(color) = 0;
+		return 0;
 	}
 }
 
-void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT32* color)
+IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 {
 	float w = 1.0f / vertex->rhw;
 
@@ -194,9 +174,9 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 			diffuse_B = CMID(diffuse_B * kD + spec_B * kS, 0, 255);
 
 #ifdef USE_GDI_VIEW
-			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+			return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 #else
-			*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+			return (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
 #endif
 		}
 		else
@@ -206,16 +186,36 @@ void shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex, IUINT3
 			diffuse_B = CMID(diffuse_B * kD, 0, 255);
 
 #ifdef USE_GDI_VIEW
-			*(color) = (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+			return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
 #else
-			*(color) = (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+			return (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
 #endif
 		}
 	}
 	else
 	{
-		*(color) = 0;
+		return 0;
 	}
+}
+
+IUINT32 shader_pixel_normal_texture_alpha(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float u = vertex->tc.u * w;
+	float v = vertex->tc.v * w;
+
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id);
+	IUINT32 texture_R = Get_R(cc);
+	IUINT32 texture_G = Get_G(cc);
+	IUINT32 texture_B = Get_B(cc);
+	IUINT32 texture_A = 127;
+
+#ifdef USE_GDI_VIEW
+	return (texture_R << 16) | (texture_G << 8) | (texture_B);
+#else
+	return (texture_R << 24) | (texture_G << 16) | (texture_B << 8) | (texture_A);
+#endif
 }
 
 RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
@@ -224,6 +224,7 @@ RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
 	{ RENDER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
 	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
 	{ RENDER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_phong_mvp, shader_pixel_texture_phong_light },
+	{ RENDER_STATE_TEXTURE_ALPHA , shader_vertex_normal_mvp, shader_pixel_normal_texture_alpha }
 };
 
 func_pixel_shader get_pixel_shader(device_t* device)

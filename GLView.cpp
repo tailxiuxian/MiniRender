@@ -345,6 +345,11 @@ void drawGLTitle(device_t *device)
 		GLTitle += "Phong Light Mode ";
 		break;
 	}
+	case RENDER_STATE_TEXTURE_ALPHA:
+	{
+		GLTitle += "Texture Alpha Mode ";
+		break;
+	}
 	default:
 		GLTitle += "No Find  Mode ";
 		break;

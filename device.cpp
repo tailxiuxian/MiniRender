@@ -155,6 +155,11 @@ void device_bind_texture(device_t* device, int texture_id)
 	}
 }
 
+void device_set_blend_state(device_t* device, blendstate_t blend_state)
+{
+	device->blend_state = blend_state;
+}
+
 int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3)
 {
 	if (device->function_state & FUNC_STATE_CULL_BACK)

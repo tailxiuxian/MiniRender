@@ -239,6 +239,11 @@ void draw_screen_title(device_t *device)
 		lstrcat(title, _T("Phong Light Mode"));
 		break;
 	}
+	case RENDER_STATE_TEXTURE_ALPHA:
+	{
+		lstrcat(title, _T("Texture Alpha Mode"));
+		break;
+	}
 	default:
 		lstrcat(title, _T("No Find  Mode"));
 		break;

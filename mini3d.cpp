@@ -32,6 +32,7 @@
 #include "GDIView.h"
 #include "shader.h"
 #include "bmpReader.h"
+#include "blend.h"
 
 static int default_texture_id = 0;
 static int texture_bmp1 = 0;
@@ -108,13 +109,20 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	for (; w > 0; x++, w--) {
 		if (x >= 0 && x < width) {
 			float rhw = scanline->v.rhw;
-			if (rhw >= zbuffer[x]) {	
-				float w = 1.0f / rhw;
-				zbuffer[x] = rhw;
+			if (rhw >= zbuffer[x]) {
 				func_pixel_shader p_shader = get_pixel_shader(device);
 				if (p_shader)
 				{
-					p_shader(device, &(scanline->v), &(framebuffer[x]));
+					IUINT32 color = p_shader(device, &(scanline->v));
+					if (is_opaque_pixel_color(color))
+					{
+						framebuffer[x] = color;
+						float w = 1.0f / rhw;
+						zbuffer[x] = rhw;
+					}
+					else {
+						framebuffer[x] = blend_frame_buffer_color(device, color, framebuffer[x]);
+					}
 				}
 			}
 		}
@@ -179,7 +187,7 @@ void device_draw_primitive(device_t *device, vertex_t *v1,
 		t1.pos.w = c1.w;
 		t2.pos.w = c2.w;
 		t3.pos.w = c3.w;
-		
+
 		vertex_rhw_init(&t1);	// 初始化 w
 		vertex_rhw_init(&t2);	// 初始化 w
 		vertex_rhw_init(&t3);	// 初始化 w
@@ -202,35 +210,35 @@ void device_draw_primitive(device_t *device, vertex_t *v1,
 // 主程序
 //=====================================================================
 vertex_t mesh[24] = {
-	{ {  1, -1,  1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f },{ 0, 0,  1, 0 }, 1 },
-	{ { -1, -1,  1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 0.2f },{ 0, 0,  1, 0 }, 1 },
-	{ { -1,  1,  1, 1 }, { 1, 1 }, { 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-	{ {  1,  1,  1, 1 }, { 1, 0 }, { 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ {  1, -1,  1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { -1, -1,  1, 1 }, { 0, 1 }, { 0.2f, 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { -1,  1,  1, 1 }, { 1, 1 }, { 0.2f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ {  1,  1,  1, 1 }, { 1, 0 }, { 1.0f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
 
-	{ {  1, -1, -1, 1 }, { 0, 0 }, { 1.0f, 1.0f, 0.2f },{ 0, 0, -1, 0 }, 1 },
-	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f },{ 0, 0, -1, 0 }, 1 },
-	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ 0, 0, -1, 0 }, 1 },
-	{ { -1, -1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 1.0f },{ 0, 0, -1, 0 }, 1 },
+	{ {  1, -1, -1, 1 }, { 0, 0 }, { 1.0f, 1.0f, 0.2f, 1.0f },{ 0, 0, -1, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f, 1.0f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f, 1.0f },{ 0, 0, -1, 0 }, 1 },
+	{ { -1, -1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 1.0f, 1.0f },{ 0, 0, -1, 0 }, 1 },
 
-	{ { -1, -1,  1, 1 },{ 0, 0 },{ 0.2f, 1.0f, 0.2f },{ -1, 0,  0, 0 }, 1 },
-	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f },{ -1, 0,  0, 0 }, 1 },
-	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ -1, 0,  0, 0 }, 1 },
-	{ { -1,  1,  1, 1 },{ 1, 0 },{ 0.2f, 0.2f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1, -1,  1, 1 },{ 0, 0 },{ 0.2f, 1.0f, 0.2f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1, -1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 1.0f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f, 1.0f },{ -1, 0,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 1, 0 },{ 0.2f, 0.2f, 1.0f, 1.0f },{ -1, 0,  0, 0 }, 1 },
 
-	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
-	{ { -1,  1,  1, 1 },{ 0, 1 },{ 0.2f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
-	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f },{ 0, 1, 0, 0 }, 1 },
-	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f },{ 0, 1, 0, 0 }, 1 },
+	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -1,  1,  1, 1 },{ 0, 1 },{ 0.2f, 0.2f, 1.0f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -1,  1, -1, 1 },{ 1, 1 },{ 1.0f, 0.3f, 0.3f, 1.0f },{ 0, 1, 0, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.3f, 1.0f },{ 0, 1, 0, 0 }, 1 },
 
-	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f },{ 0, -1,  0, 0 }, 1 },
-	{ { 1, -1, -1, 1 },{ 0, 1 },{ 1.0f, 1.0f, 0.2f },{ 0, -1, 0, 0 }, 1 },
-	{ { -1, -1, -1, 1 },{ 1, 1 },{ 0.2f, 1.0f, 1.0f },{ 0, -1, 0, 0 }, 1 },
-	{ { -1, -1,  1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.2f },{ 0, -1,  0, 0 }, 1 },
+	{ { 1, -1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 0, -1,  0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 0, 1 },{ 1.0f, 1.0f, 0.2f, 1.0f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1, -1, 1 },{ 1, 1 },{ 0.2f, 1.0f, 1.0f, 1.0f },{ 0, -1, 0, 0 }, 1 },
+	{ { -1, -1,  1, 1 },{ 1, 0 },{ 0.2f, 1.0f, 0.2f, 1.0f },{ 0, -1,  0, 0 }, 1 },
 
-	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
-	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f },{ 1, 0, 0, 0 }, 1 },
-	{ { 1, -1, -1, 1 },{ 1, 1 },{ 1.0f, 1.0f, 0.2f },{ 1, 0, 0, 0 }, 1 },
-	{ { 1, -1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 0.2f },{ 1, 0,  0, 0 }, 1 },
+	{ { 1,  1,  1, 1 },{ 0, 0 },{ 1.0f, 0.2f, 1.0f, 1.0f },{ 1, 0,  0, 0 }, 1 },
+	{ { 1,  1, -1, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.3f, 1.0f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1, -1, 1 },{ 1, 1 },{ 1.0f, 1.0f, 0.2f, 1.0f },{ 1, 0, 0, 0 }, 1 },
+	{ { 1, -1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
 };
 
 #define TRIANGLES 1
@@ -306,11 +314,19 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
 		device_set_uniform_value(device, 3, &matrial);
 
-		device_bind_texture(device, texture_bmp1);
+		device_bind_texture(device, default_texture_id);
 	}
 	else if (device->render_state == RENDER_STATE_TEXTURE)
 	{
-		device_bind_texture(device, texture_bmp2);
+		device_bind_texture(device, default_texture_id);
+	}
+	else if (device->render_state == RENDER_STATE_TEXTURE_ALPHA)
+	{
+		device_bind_texture(device, default_texture_id);
+		blendstate_t blendstate;
+		blendstate.srcState = BLEND_SRC_ALPHA;
+		blendstate.srcState = BLEND_ONE_MINUS_SRC_ALPHA;
+		device_set_blend_state(device, blendstate);
 	}
 }
 
@@ -375,7 +391,7 @@ void set_key_quit()
 
 int main(void)
 {
-	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE };
+	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA };
 	int indicator = 0;
 	int kbhit = 0;
 	float alpha = 0;
