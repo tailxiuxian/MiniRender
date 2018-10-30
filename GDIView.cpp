@@ -241,7 +241,7 @@ void draw_screen_title(device_t *device)
 	}
 	case RENDER_STATE_TEXTURE_ALPHA:
 	{
-		lstrcat(title, _T("Texture Alpha Mode"));
+		lstrcat(title, _T("Texture Alpha Mode Not Work In GDI View"));
 		break;
 	}
 	default:

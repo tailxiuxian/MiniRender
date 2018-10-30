@@ -110,6 +110,15 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 		if (x >= 0 && x < width) {
 			float rhw = scanline->v.rhw;
 			if (rhw >= zbuffer[x]) {
+#ifdef USE_GDI_VIEW
+				func_pixel_shader p_shader = get_pixel_shader(device);
+				if (p_shader)
+				{
+					framebuffer[x] = p_shader(device, &(scanline->v));
+					float w = 1.0f / rhw;
+					zbuffer[x] = rhw;
+				}
+#else
 				func_pixel_shader p_shader = get_pixel_shader(device);
 				if (p_shader)
 				{
@@ -124,6 +133,7 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 						framebuffer[x] = blend_frame_buffer_color(device, color, framebuffer[x]);
 					}
 				}
+#endif
 			}
 		}
 		vertex_add(&scanline->v, &scanline->step);
