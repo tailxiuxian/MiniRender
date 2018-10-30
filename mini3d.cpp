@@ -309,7 +309,7 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
 		device_set_uniform_value(device, 1, &direction);
 
-		device_bind_texture(device, default_texture_id);
+		device_bind_texture(device, 0, default_texture_id);
 	}
 	else if (device->render_state == RENDER_STATE_PHONG_LIGHT_TEXTURE)
 	{
@@ -324,15 +324,15 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
 		device_set_uniform_value(device, 3, &matrial);
 
-		device_bind_texture(device, default_texture_id);
+		device_bind_texture(device, 0, default_texture_id);
 	}
 	else if (device->render_state == RENDER_STATE_TEXTURE)
 	{
-		device_bind_texture(device, default_texture_id);
+		device_bind_texture(device, 0, default_texture_id);
 	}
 	else if (device->render_state == RENDER_STATE_TEXTURE_ALPHA)
 	{
-		device_bind_texture(device, default_texture_id);
+		device_bind_texture(device, 0, default_texture_id);
 		blendstate_t blendstate;
 		blendstate.srcState = BLEND_SRC_ALPHA;
 		blendstate.srcState = BLEND_ONE_MINUS_SRC_ALPHA;

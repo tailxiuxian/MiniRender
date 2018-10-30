@@ -147,11 +147,16 @@ int device_gen_texture(device_t* device)
 	return -1;
 }
 
-void device_bind_texture(device_t* device, int texture_id)
+void device_bind_texture(device_t* device, int iIndex, int texture_id)
 {
 	if (device->texture_array[texture_id].is_used == true)
 	{
-		device->texture_id = texture_id;
+		if (iIndex < 0 || iIndex >= MAX_TEXTURE_NUM)
+		{
+			return;
+		}
+
+		device->texture_id[iIndex] = texture_id;
 	}
 }
 

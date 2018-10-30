@@ -47,7 +47,7 @@ typedef struct {
 	vector_t uniform[MAX_UNIFORM_NUM];
 
 	// Texture ID
-	int texture_id;
+	int texture_id[MAX_TEXTURE_NUM];
 
 	// Blend State
 	blendstate_t blend_state;
@@ -66,7 +66,7 @@ void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array);
 void device_set_uniform_value(device_t* device, int iUniformIndex,vector_t* pVec);
 
 int device_gen_texture(device_t* device);
-void device_bind_texture(device_t* device, int texture_id);
+void device_bind_texture(device_t* device, int iIndex, int texture_id);
 
 void device_set_blend_state(device_t* device, blendstate_t blend_state);
 

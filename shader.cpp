@@ -60,7 +60,7 @@ IUINT32 shader_pixel_normal_texture(device_t* device, vertex_t* vertex)
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
-	IUINT32 cc = device_texture_read(device, u, v, device->texture_id);
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id[0]);
 	IUINT32 texture_R = Get_R(cc);
 	IUINT32 texture_G = Get_G(cc);
 	IUINT32 texture_B = Get_B(cc);
@@ -89,7 +89,7 @@ IUINT32 shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex)
 	vector_t cnormal;
 	matrix_apply(&cnormal, &normal, &(normal_world));
 
-	IUINT32 cc = device_texture_read(device, u, v, device->texture_id);
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id[0]);
 	float diffuse = vector_dotproduct(&direction, &cnormal);
 	if (diffuse >= 0.001)
 	{
@@ -135,7 +135,7 @@ IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 	vector_t cnormal;
 	matrix_apply(&cnormal, &normal, &(normal_world));
 
-	IUINT32 cc = device_texture_read(device, u, v, device->texture_id);
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id[0]);
 	float diffuse = vector_dotproduct(&direction, &cnormal);
 	if (diffuse >= 0.001)
 	{
@@ -205,7 +205,7 @@ IUINT32 shader_pixel_normal_texture_alpha(device_t* device, vertex_t* vertex)
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
-	IUINT32 cc = device_texture_read(device, u, v, device->texture_id);
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id[0]);
 	IUINT32 texture_R = Get_R(cc);
 	IUINT32 texture_G = Get_G(cc);
 	IUINT32 texture_B = Get_B(cc);
