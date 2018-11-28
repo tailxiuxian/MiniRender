@@ -114,7 +114,11 @@ IUINT32 shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex)
 	}
 	else
 	{
+#ifdef USE_GDI_VIEW
 		return 0;
+#else
+		return 255;
+#endif
 	}
 }
 
@@ -194,7 +198,11 @@ IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 	}
 	else
 	{
+#ifdef USE_GDI_VIEW
 		return 0;
+#else
+		return 255;
+#endif
 	}
 }
 

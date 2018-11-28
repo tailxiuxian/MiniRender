@@ -20,6 +20,7 @@ typedef struct {
 
 #define MAX_UNIFORM_NUM 128
 #define MAX_TEXTURE_NUM 16
+#define MAX_VERTEX_NUM 4
 
 typedef struct {
 	int srcState;

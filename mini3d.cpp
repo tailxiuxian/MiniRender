@@ -251,6 +251,13 @@ vertex_t mesh[24] = {
 	{ { 1, -1,  1, 1 },{ 1, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 1, 0,  0, 0 }, 1 },
 };
 
+vertex_t mesh_panel[4] = {
+	{ { 4, -4,  -2, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { -4, -4, -2, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { -4,  4, -2, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { 4,  4,  -2, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+};
+
 #define TRIANGLES 1
 
 // 简单期间 索引全部用int
@@ -281,6 +288,17 @@ void draw_plane(device_t *device, int a, int b, int c, int d) {
 }
 
 // application stage
+void draw_backggroud(device_t *device)
+{
+	matrix_set_identity(&(device->transform.world));
+	matrix_set_identity(&(device->transform.worldInv));
+	transform_update(&device->transform);
+
+	int index_panel[6] = { 0,1,2, 2,3,0 };
+	device_set_vertex_attrib_pointer(device, mesh_panel);
+	draw_elements(device, TRIANGLES, 2, index_panel);
+}
+
 void draw_box(device_t *device, float theta) {
 	matrix_t m;
 	matrix_set_rotate(&m, -1, -0.5, 1, theta);
@@ -306,7 +324,7 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		vector_t energy = { 1.0,1.0,1.0,0.0 };
 		device_set_uniform_value(device, 0, &energy); // 入射光强
 
-		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
+		vector_t direction = { 0.0,0.0,10.0,0.0 }; // 入射光方向
 		device_set_uniform_value(device, 1, &direction);
 
 		device_bind_texture(device, 0, default_texture_id);
@@ -316,7 +334,7 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		vector_t energy = { 1.0,1.0,1.0,0.0 };
 		device_set_uniform_value(device, 0, &energy); // 入射光强
 
-		vector_t direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
+		vector_t direction = { 0.0,0.0,10.0,0.0 }; // 入射光方向
 		device_set_uniform_value(device, 1, &direction);
 
 		device_set_uniform_value(device, 2, &eye); // 视点位置
@@ -447,6 +465,7 @@ int main(void)
 		device_clear(device, 1);
 		camera_at_zero(device, pos, pos, pos);
 
+		draw_backggroud(device);
 		draw_box(device, alpha);
 
 #ifdef USE_GDI_VIEW
