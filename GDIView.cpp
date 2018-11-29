@@ -119,7 +119,6 @@ static void dispatch_key_event(WPARAM wKey)
 
 		break;
 	}
-
 	case VK_ESCAPE:
 	{
 		set_key_quit();
@@ -244,20 +243,19 @@ void draw_screen_title(device_t *device)
 		lstrcat(title, _T("Texture Alpha Mode Not Work In GDI View"));
 		break;
 	}
+	case RENDER_STATE_SHADOW_MAP:
+	{
+		lstrcat(title, _T("Shadow Map Mode"));
+		break;
+	}
 	default:
 		lstrcat(title, _T("No Find  Mode"));
 		break;
 	}
 
-	switch (device->function_state)
-	{
-	case FUNC_STATE_CULL_BACK:
+	if (device->function_state & FUNC_STATE_CULL_BACK)
 	{
 		lstrcat(title, _T(" - culling back"));
-		break;
-	}
-	default:
-		break;
 	}
 
 	set_screen_title(title);

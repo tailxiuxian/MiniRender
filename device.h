@@ -34,6 +34,7 @@ typedef struct {
 	IUINT32 **framebuffer;      // 像素缓存：framebuffer[y] 代表第 y行
 	float **zbuffer;            // 深度缓存：zbuffer[y] 为第 y行指针
 	int render_state;           // 渲染状态
+	int shader_state;			// shader的组合状态
 	IUINT32 background;         // 背景颜色
 	IUINT32 foreground;         // 线框颜色
 	int function_state;			// 功能状态		
@@ -45,7 +46,9 @@ typedef struct {
 	vertex_t* vertex_array; // 应该申请一份显存 实现内存到显存的copy 用index管理顶点存储
 
 	// Uniform
-	vector_t uniform[MAX_UNIFORM_NUM];
+	vector_t uniform_vector[MAX_UNIFORM_NUM];
+
+	matrix_t uniform_matrix[MAX_UNIFORM_NUM];
 
 	// Texture ID
 	int texture_id[MAX_TEXTURE_NUM];
@@ -63,8 +66,10 @@ void device_set_texture(device_t *device, void *bits, long pitch, int w, int h, 
 void device_clear(device_t *device, int mode); // 清空 framebuffer 和 zbuffer						   
 IUINT32 device_texture_read(const device_t *device, float u, float v, int texture_id); // 根据坐标读取纹理
 void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array); // 设置顶点数据
+float device_texture_read_float(const device_t *device, float u, float v, int texture_id);
 
-void device_set_uniform_value(device_t* device, int iUniformIndex,vector_t* pVec);
+void device_set_uniform_vector_value(device_t* device, int iUniformIndex, vector_t* pVec);
+void device_set_uniform_matrix_value(device_t* device, int iUniformIndex, matrix_t* pMat);
 
 int device_gen_texture(device_t* device);
 void device_bind_texture(device_t* device, int iIndex, int texture_id);
@@ -74,3 +79,7 @@ void device_set_blend_state(device_t* device, blendstate_t blend_state);
 int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3); // 背部剔除
 
 device_t* get_device_inst();
+
+void device_copy_framebuffer(device_t* device, IUINT32** buffer);
+
+void device_set_shader_state(device_t* device, int shader_state);

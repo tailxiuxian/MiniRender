@@ -8,14 +8,17 @@
 typedef struct { float r, g, b, a; } color_t;
 typedef struct { float u, v; } texcoord_t;
 
+#define MAX_VS_SHADER_RESULT 4 
+
 // attribute
 typedef struct vertex_t{
 	point_t pos; 
 	texcoord_t tc; 
 	color_t color; 
 	vector_t normal;
-	vector_t eye_view;
 	float rhw; 
+
+	vector_t vs_result[MAX_VS_SHADER_RESULT];
 }vertex_t;
 
 typedef struct { vertex_t v, v1, v2; } edge_t;

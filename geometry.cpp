@@ -22,7 +22,11 @@ void vertex_interp(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float t)
 	y->color.a = interp(x1->color.a, x2->color.a, t);
 	y->rhw = interp(x1->rhw, x2->rhw, t);
 	vector_interp(&y->normal, &x1->normal, &x2->normal, t);
-	vector_interp(&y->eye_view, &x1->eye_view, &x2->eye_view, t);
+	
+	for (int i = 0; i < MAX_VS_SHADER_RESULT; i++)
+	{
+		vector_interp(&y->vs_result[i], &x1->vs_result[i], &x2->vs_result[i], t);
+	}
 }
 
 void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float w) {
@@ -42,10 +46,14 @@ void vertex_division(vertex_t *y, const vertex_t *x1, const vertex_t *x2, float 
 	y->normal.y = (x2->normal.y - x1->normal.y) * inv;
 	y->normal.z = (x2->normal.z - x1->normal.z) * inv;
 	y->normal.w = (x2->normal.w - x1->normal.w) * inv;
-	y->eye_view.x = (x2->eye_view.x - x1->eye_view.x) * inv;
-	y->eye_view.y = (x2->eye_view.y - x1->eye_view.y) * inv;
-	y->eye_view.z = (x2->eye_view.z - x1->eye_view.z) * inv;
-	y->eye_view.w = (x2->eye_view.w - x1->eye_view.w) * inv;
+
+	for (int i = 0; i < MAX_VS_SHADER_RESULT; i++)
+	{
+		y->vs_result[i].x = (x2->vs_result[i].x - x1->vs_result[i].x) * inv;
+		y->vs_result[i].y = (x2->vs_result[i].y - x1->vs_result[i].y) * inv;
+		y->vs_result[i].z = (x2->vs_result[i].z - x1->vs_result[i].z) * inv;
+		y->vs_result[i].w = (x2->vs_result[i].w - x1->vs_result[i].w) * inv;
+	}
 }
 
 void vertex_add(vertex_t *y, const vertex_t *x) {
@@ -64,10 +72,14 @@ void vertex_add(vertex_t *y, const vertex_t *x) {
 	y->normal.y += x->normal.y;
 	y->normal.z += x->normal.z;
 	y->normal.w += x->normal.w;
-	y->eye_view.x += x->eye_view.x;
-	y->eye_view.y += x->eye_view.y;
-	y->eye_view.z += x->eye_view.z;
-	y->eye_view.w += x->eye_view.w;
+
+	for (int i = 0; i < MAX_VS_SHADER_RESULT; i++)
+	{
+		y->vs_result[i].x += x->vs_result[i].x;
+		y->vs_result[i].y += x->vs_result[i].y;
+		y->vs_result[i].z += x->vs_result[i].z;
+		y->vs_result[i].w += x->vs_result[i].w;
+	}
 }
 
 // 根据三角形生成 0-2 个梯形，并且返回合法梯形的数量

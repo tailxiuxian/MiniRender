@@ -33,6 +33,9 @@ void vector_normalize(vector_t *v);
 
 void vector_scale(vector_t *z, float scale);
 
+// b = a
+void matrix_set(matrix_t* b, const matrix_t* a);
+
 // c = a + b
 void matrix_add(matrix_t *c, const matrix_t *a, const matrix_t *b);
 

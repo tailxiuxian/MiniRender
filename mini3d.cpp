@@ -37,6 +37,7 @@
 static int default_texture_id = 0;
 static int texture_bmp1 = 0;
 static int texture_bmp2 = 0;
+static int texture_shadow = 0;
 
 //=====================================================================
 // 绘制区域
@@ -252,10 +253,10 @@ vertex_t mesh[24] = {
 };
 
 vertex_t mesh_panel[4] = {
-	{ { 4, -4,  -2, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-	{ { -4, -4, -2, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-	{ { -4,  4, -2, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
-	{ { 4,  4,  -2, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f, 1.0f },{ 0, 0,  1, 0 }, 1 },
+	{ { 4,	-5, -4, 1 },{ 0, 0 },{ 1.0f, 0.2f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { 4,  -5, 4, 1 },{ 1, 0 },{ 1.0f, 0.2f, 1.0f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -4, -5, 4, 1 },{ 1, 1 },{ 0.2f, 0.2f, 1.0f, 1.0f },{ 0, 1,  0, 0 }, 1 },
+	{ { -4, -5, -4, 1 },{ 0, 1 },{ 0.2f, 1.0f, 0.2f, 1.0f },{ 0, 1,  0, 0 }, 1 },
 };
 
 #define TRIANGLES 1
@@ -311,44 +312,94 @@ void draw_box(device_t *device, float theta) {
 	draw_elements(device, TRIANGLES, 12, index);
 }
 
-void camera_at_zero(device_t *device, float x, float y, float z) {
+void setup_camera(device_t *device, float x, float y, float z) {
 	point_t eye = { x, y, z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
 	
 	// upload matrix to GPU
 	matrix_set_lookat(&device->transform.view, &eye, &at, &up);
 	transform_update(&device->transform);
-	
-	//upload uniform
-	if (device->render_state == RENDER_STATE_LAMBERT_LIGHT_TEXTURE)
+}
+
+// 光源
+static vector_t normal_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
+static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 阴影入射光方向
+
+static vector_t shadow_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
+static vector_t shadow_light_direction = { 0.0,5.0,0.0,0.0 }; // 阴影入射光方向
+static matrix_t shadow_light_transform;
+static IUINT32 **shadow_texture = NULL;
+static IUINT32 *shadow_texture_buffer = NULL;
+
+void setup_shader(device_t *device)
+{	
+	if (device->render_state == RENDER_STATE_WIREFRAME)
 	{
-		vector_t energy = { 1.0,1.0,1.0,0.0 };
-		device_set_uniform_value(device, 0, &energy); // 入射光强
-
-		vector_t direction = { 0.0,0.0,10.0,0.0 }; // 入射光方向
-		device_set_uniform_value(device, 1, &direction);
-
-		device_bind_texture(device, 0, default_texture_id);
-	}
-	else if (device->render_state == RENDER_STATE_PHONG_LIGHT_TEXTURE)
-	{
-		vector_t energy = { 1.0,1.0,1.0,0.0 };
-		device_set_uniform_value(device, 0, &energy); // 入射光强
-
-		vector_t direction = { 0.0,0.0,10.0,0.0 }; // 入射光方向
-		device_set_uniform_value(device, 1, &direction);
-
-		device_set_uniform_value(device, 2, &eye); // 视点位置
-
-		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
-		device_set_uniform_value(device, 3, &matrial);
-
-		device_bind_texture(device, 0, default_texture_id);
+		device_set_shader_state(device, SHADER_STATE_WIREFRAME);
 	}
 	else if (device->render_state == RENDER_STATE_TEXTURE)
 	{
-		device_bind_texture(device, 0, default_texture_id);
+		device_set_shader_state(device, SHADER_STATE_TEXTURE);
+	}
+	else if (device->render_state == RENDER_STATE_COLOR)
+	{
+		device_set_shader_state(device, SHADER_STATE_COLOR);
+	}
+	else if (device->render_state == RENDER_STATE_LAMBERT_LIGHT_TEXTURE)
+	{
+		device_set_shader_state(device,SHADER_STATE_LAMBERT_LIGHT_TEXTURE);
+	}
+	else if (device->render_state == RENDER_STATE_PHONG_LIGHT_TEXTURE)
+	{
+		device_set_shader_state(device, SHADER_STATE_PHONG_LIGHT_TEXTURE);
 	}
 	else if (device->render_state == RENDER_STATE_TEXTURE_ALPHA)
+	{
+		device_set_shader_state(device, SHADER_STATE_TEXTURE_ALPHA);
+	}
+	else if (device->render_state == RENDER_STATE_SHADOW_MAP)
+	{
+		device_set_shader_state(device, SHADER_STATE_SHADOW_MAP);
+	}
+}
+
+void setup_shader_parma(device_t *device, float x, float y, float z)
+{
+	point_t eye = { x, y, z, 1 };
+	
+	if (device->shader_state == SHADER_STATE_WIREFRAME)
+	{
+
+	}
+	else if (device->shader_state == SHADER_STATE_TEXTURE)
+	{
+		device_bind_texture(device, 0, default_texture_id);
+	}
+	else if (device->shader_state == SHADER_STATE_COLOR)
+	{
+
+	}
+	else if (device->shader_state == SHADER_STATE_LAMBERT_LIGHT_TEXTURE)
+	{
+		device_set_uniform_vector_value(device, 0, &normal_light_energy);
+
+		device_set_uniform_vector_value(device, 1, &normal_light_direction);
+
+		device_bind_texture(device, 0, default_texture_id);
+	}
+	else if (device->shader_state == SHADER_STATE_PHONG_LIGHT_TEXTURE)
+	{
+		device_set_uniform_vector_value(device, 0, &normal_light_energy); // 入射光强
+
+		device_set_uniform_vector_value(device, 1, &normal_light_direction);
+
+		device_set_uniform_vector_value(device, 2, &eye); // 视点位置
+
+		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
+		device_set_uniform_vector_value(device, 3, &matrial);
+
+		device_bind_texture(device, 0, default_texture_id);
+	}
+	else if (device->shader_state == SHADER_STATE_TEXTURE_ALPHA)
 	{
 		device_bind_texture(device, 0, default_texture_id);
 		blendstate_t blendstate;
@@ -356,8 +407,23 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 		blendstate.srcState = BLEND_ONE_MINUS_SRC_ALPHA;
 		device_set_blend_state(device, blendstate);
 	}
-}
+	else if (device->shader_state == SHADER_STATE_SHADOW_MAP)
+	{
 
+	}
+	else if (device->shader_state == SHADER_STATE_LIGHT_SHADOW)
+	{
+		device_set_uniform_matrix_value(device, 0, &shadow_light_transform);
+
+		device_set_uniform_vector_value(device, 0, &shadow_light_energy);
+
+		device_set_uniform_vector_value(device, 1, &shadow_light_direction);
+
+		device_bind_texture(device, 0, default_texture_id);
+
+		device_bind_texture(device, 1, texture_shadow);
+	}
+}
 
 void init_texture(device_t *device) {
 	static IUINT32 texture[256][256];
@@ -419,10 +485,10 @@ void set_key_quit()
 
 int main(void)
 {
-	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA };
+	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA, RENDER_STATE_SHADOW_MAP };
 	int indicator = 0;
 	int kbhit = 0;
-	float alpha = 0;
+	float alpha = 0.0f;
 	float pos = 5;
 	int window_w = WINDOW_SIZE;
 	int window_h = WINDOW_SIZE;
@@ -438,7 +504,9 @@ int main(void)
 
 	device_t* device = get_device_inst();
 	device_init(device, window_w, window_h, get_screen_fb());
-	camera_at_zero(device, 0, 0, 0);
+	setup_camera(device, 0, 0, 0);
+	setup_shader(device);
+	setup_shader_parma(device, 0, 0, 0);
 	init_texture(device);
 
 	while (get_key_quit() == 0) {
@@ -462,10 +530,50 @@ int main(void)
 			kbhit = 0;
 		}
 
-		device_clear(device, 1);
-		camera_at_zero(device, pos, pos, pos);
+		// 绘制shadowmap
+		if (device->render_state & RENDER_STATE_SHADOW_MAP)
+		{
+			device->background = 0;
+			device_clear(device, 0);
+			setup_camera(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
+			setup_shader(device);
+			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
+			draw_backggroud(device);
+			draw_box(device, alpha);
 
-		draw_backggroud(device);
+			
+			if (NULL == shadow_texture)
+			{
+				shadow_texture = new IUINT32*[device->height];
+				shadow_texture_buffer = new IUINT32[device->height * device->width];
+				for (int i = 0; i < device->height; i++)
+				{
+					shadow_texture[i] = shadow_texture_buffer + device->width * i;
+				}
+			}
+
+			device_copy_framebuffer(device, shadow_texture); // 获取shadowmap
+			shadow_light_transform = device->transform.transform; // 获取光源变换矩阵
+			if (texture_shadow == 0)
+			{
+				texture_shadow = device_gen_texture(device);
+			}
+			device_set_texture(device, shadow_texture_buffer, device->width * 4, device->width, device->height, texture_shadow);
+		}
+
+		device_clear(device, 1);
+		setup_camera(device, pos, pos, pos);
+		setup_shader(device);
+		if (device->render_state == RENDER_STATE_SHADOW_MAP)
+		{
+			// 设置新的shader
+			device_set_shader_state(device, SHADER_STATE_LIGHT_SHADOW);
+		}
+		setup_shader_parma(device, pos, pos, pos);
+		if (device->render_state == RENDER_STATE_SHADOW_MAP)
+		{
+			draw_backggroud(device);
+		}
 		draw_box(device, alpha);
 
 #ifdef USE_GDI_VIEW
@@ -476,6 +584,7 @@ int main(void)
 		drawGLTitle(device);
 		drawGLView();
 #endif
+
 		Sleep(1);
 	}
 

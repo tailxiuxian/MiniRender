@@ -195,7 +195,6 @@ static void dispatch_key_event(int keyCode)
 
 		break;
 	}
-
 	case GLFW_KEY_ESCAPE:
 	{
 		set_key_quit();
@@ -350,20 +349,19 @@ void drawGLTitle(device_t *device)
 		GLTitle += "Texture Alpha Mode ";
 		break;
 	}
+	case RENDER_STATE_SHADOW_MAP:
+	{
+		GLTitle += "Shadow Map Mode ";
+		break;
+	}
 	default:
 		GLTitle += "No Find  Mode ";
 		break;
 	}
 
-	switch (device->function_state)
-	{
-	case FUNC_STATE_CULL_BACK:
+	if (device->function_state & FUNC_STATE_CULL_BACK)
 	{
 		GLTitle += " - culling back";
-		break;
-	}
-	default:
-		break;
 	}
 
 	glfwSetWindowTitle(gl_window, GLTitle.c_str());

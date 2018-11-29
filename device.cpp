@@ -53,7 +53,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->background = 0xc0c0c0ff;
 	device->foreground = 0;
 	transform_init(&device->transform, width, height);
-	device->render_state = RENDER_STATE_WIREFRAME;
+	device->render_state = RENDER_STATE_SHADOW_MAP;
 	device->function_state = 0;
 }
 
@@ -108,6 +108,22 @@ void device_clear(device_t *device, int mode) {
 	}
 }
 
+void device_copy_framebuffer(device_t* device, IUINT32** buffer)
+{
+	int y, x, height = device->height;
+	for (y = 0; y < device->height; y++) {;
+		for (x = 0; x < device->width; x++)
+		{
+			buffer[y][x] = device->framebuffer[y][x];
+		}
+	}
+}
+
+void device_set_shader_state(device_t* device, int shader_state)
+{
+	device->shader_state = shader_state;
+}
+
 // 根据坐标读取纹理
 IUINT32 device_texture_read(const device_t *device, float u, float v, int texture_id) {
 	int x, y;
@@ -120,16 +136,37 @@ IUINT32 device_texture_read(const device_t *device, float u, float v, int textur
 	return device->texture_array[texture_id].texture[y][x];
 }
 
+float device_texture_read_float(const device_t *device, float u, float v, int texture_id)
+{
+	int x, y;
+	u = u * device->texture_array[texture_id].max_u;
+	v = v * device->texture_array[texture_id].max_v;
+	x = (int)(u + 0.5f);
+	y = (int)(v + 0.5f);
+	x = CMID(x, 0, device->texture_array[texture_id].width - 1);
+	y = CMID(y, 0, device->texture_array[texture_id].height - 1);
+	float* ptr =  (float*)(&(device->texture_array[texture_id].texture[y][x]));
+	return *ptr;
+}
+
 void device_set_vertex_attrib_pointer(device_t* device, vertex_t* vertex_array)
 {
 	device->vertex_array = vertex_array;
 }
 
-void device_set_uniform_value(device_t* device, int iUniformIndex, vector_t* pVec)
+void device_set_uniform_vector_value(device_t* device, int iUniformIndex, vector_t* pVec)
 {
 	if (iUniformIndex >= 0 && iUniformIndex < MAX_UNIFORM_NUM)
 	{
-		device->uniform[iUniformIndex] = *(pVec);
+		device->uniform_vector[iUniformIndex] = *(pVec);
+	}
+}
+
+void device_set_uniform_matrix_value(device_t* device, int iUniformIndex, matrix_t* pMat)
+{
+	if (iUniformIndex >= 0 && iUniformIndex < MAX_UNIFORM_NUM)
+	{
+		device->uniform_matrix[iUniformIndex] = *(pMat);
 	}
 }
 

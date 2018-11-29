@@ -25,8 +25,19 @@ void shader_vertex_phong_mvp(device_t* device, vertex_t* vertex, point_t* output
 	point_t posInWorld;
 	matrix_apply(&posInWorld, &(vertex->pos), &(device->transform.world));
 
-	point_t eye = device->uniform[2];
-	vector_sub(&vertex->eye_view, &eye, &posInWorld);
+	point_t eye = device->uniform_vector[2];
+	vector_sub(&vertex->vs_result[0], &eye, &posInWorld);
+}
+
+void shader_vertex_shadow_map_mvp(device_t* device, vertex_t* vertex, point_t* output)
+{
+	transform_apply(&device->transform, output, &(vertex->pos));
+	
+	vector_t pos_in_light_space;
+	matrix_apply(&(pos_in_light_space), &(vertex->pos), &(device->uniform_matrix[0]));
+	transform_homogenize(&device->transform, &(vertex->vs_result[0]), &pos_in_light_space);
+
+	printf("111111111111111111111111111111:%f\n", vertex->vs_result[0].z);
 }
 
 unsigned char default_alpha = 255;
@@ -80,7 +91,7 @@ IUINT32 shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex)
 	float v = vertex->tc.v * w;
 
 	vector_t normal = vertex->normal;
-	vector_t direction = device->uniform[1];
+	vector_t direction = device->uniform_vector[1];
 	vector_normalize(&direction);
 	vector_normalize(&normal);
 
@@ -97,7 +108,7 @@ IUINT32 shader_pixel_texture_lambert_light(device_t* device, vertex_t* vertex)
 		IUINT32 texture_G = Get_G(cc);
 		IUINT32 texture_B = Get_B(cc);
 
-		vector_t energy = device->uniform[0];
+		vector_t energy = device->uniform_vector[0];
 		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * energy.x);
 		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * energy.y);
 		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * energy.z);
@@ -130,7 +141,7 @@ IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 	float v = vertex->tc.v * w;
 
 	vector_t normal = vertex->normal;
-	vector_t direction = device->uniform[1];
+	vector_t direction = device->uniform_vector[1];
 	vector_normalize(&direction);
 	vector_normalize(&normal);
 
@@ -147,7 +158,7 @@ IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 		IUINT32 texture_G = Get_G(cc);
 		IUINT32 texture_B = Get_B(cc);
 
-		vector_t energy = device->uniform[0];
+		vector_t energy = device->uniform_vector[0];
 		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * energy.x);
 		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * energy.y);
 		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * energy.z);
@@ -157,10 +168,10 @@ IUINT32 shader_pixel_texture_phong_light(device_t* device, vertex_t* vertex)
 		vector_sub(&vec_spec, &vec_spec, &direction);
 		vector_normalize(&vec_spec);
 
-		vector_t eye_view = vertex->eye_view;
+		vector_t eye_view = vertex->vs_result[0];
 		vector_normalize(&eye_view);
 
-		vector_t matrial = device->uniform[3];
+		vector_t matrial = device->uniform_vector[3];
 		float kD = matrial.x;
 		float kS = matrial.y;
 		float kQ = matrial.z;
@@ -226,23 +237,101 @@ IUINT32 shader_pixel_normal_texture_alpha(device_t* device, vertex_t* vertex)
 #endif
 }
 
-RenderComponent g_RenderComponent[MAX_RENDER_STATE] = {
-	{ RENDER_STATE_WIREFRAME, shader_vertex_normal_mvp, NULL },
-	{ RENDER_STATE_TEXTURE, shader_vertex_normal_mvp, shader_pixel_normal_texture },
-	{ RENDER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
-	{ RENDER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
-	{ RENDER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_phong_mvp, shader_pixel_texture_phong_light },
-	{ RENDER_STATE_TEXTURE_ALPHA , shader_vertex_normal_mvp, shader_pixel_normal_texture_alpha }
+IUINT32 shader_pixel_shadow_map(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	IUINT32 texture_R = 0;
+	IUINT32 texture_G = 0;
+	IUINT32 texture_B = IUINT32(255.0f * vertex->pos.z);
+
+#ifdef USE_GDI_VIEW
+	return (texture_R << 16) | (texture_G << 8) | (texture_B);
+#else
+	return (texture_R << 24) | (texture_G << 16) | (texture_B << 8) | (default_alpha);
+#endif
+}
+
+IUINT32 shader_pixel_texture_lambert_light_shadow(device_t* device, vertex_t* vertex)
+{
+	float w = 1.0f / vertex->rhw;
+
+	float u = vertex->tc.u * w;
+	float v = vertex->tc.v * w;
+
+	IUINT32 depth = device_texture_read(device,vertex->vs_result[0].x / device->width,vertex->vs_result[0].y / device->height,device->texture_id[1]);
+	float fDepth = (depth >> 8) / 255.0f;
+	float fShadow = 1.0f;
+	if (fDepth > 0.0f)
+	{
+		if (vertex->vs_result[0].z > (fDepth + 0.05f))
+		{
+			fShadow = 0.6f;
+		}
+	}
+
+	vector_t normal = vertex->normal;
+	vector_t direction = device->uniform_vector[1];
+	vector_normalize(&direction);
+	vector_normalize(&normal);
+
+	matrix_t normal_world;
+	matrix_transpose(&(device->transform.worldInv), &normal_world);
+	vector_t cnormal;
+	matrix_apply(&cnormal, &normal, &(normal_world));
+
+	IUINT32 cc = device_texture_read(device, u, v, device->texture_id[0]);
+	float diffuse = vector_dotproduct(&direction, &cnormal);
+	if (diffuse >= 0.001)
+	{
+		IUINT32 texture_R = Get_R(cc);
+		IUINT32 texture_G = Get_G(cc);
+		IUINT32 texture_B = Get_B(cc);
+
+		vector_t energy = device->uniform_vector[0];
+		IUINT32 diffuse_R = (IUINT32)(texture_R * diffuse * energy.x * fShadow);
+		IUINT32 diffuse_G = (IUINT32)(texture_G * diffuse * energy.y * fShadow);
+		IUINT32 diffuse_B = (IUINT32)(texture_B * diffuse * energy.z * fShadow);
+
+		diffuse_R = CMID(diffuse_R, 0, 255);
+		diffuse_G = CMID(diffuse_G, 0, 255);
+		diffuse_B = CMID(diffuse_B, 0, 255);
+
+#ifdef USE_GDI_VIEW
+		return (diffuse_R << 16) | (diffuse_G << 8) | (diffuse_B);
+#else
+		return (diffuse_R << 24) | (diffuse_G << 16) | (diffuse_B << 8) | (default_alpha);
+#endif
+	}
+	else
+	{
+#ifdef USE_GDI_VIEW
+		return 0;
+#else
+		return default_alpha;
+#endif
+	}
+}
+
+RenderComponent g_ShaderComponent[MAX_SHADER_STATE] = {
+	{ SHADER_STATE_WIREFRAME, shader_vertex_normal_mvp, NULL },
+	{ SHADER_STATE_TEXTURE, shader_vertex_normal_mvp, shader_pixel_normal_texture },
+	{ SHADER_STATE_COLOR, shader_vertex_normal_mvp, shader_pixel_normal_color },
+	{ SHADER_STATE_LAMBERT_LIGHT_TEXTURE, shader_vertex_normal_mvp, shader_pixel_texture_lambert_light },
+	{ SHADER_STATE_PHONG_LIGHT_TEXTURE, shader_vertex_phong_mvp, shader_pixel_texture_phong_light },
+	{ SHADER_STATE_TEXTURE_ALPHA , shader_vertex_normal_mvp, shader_pixel_normal_texture_alpha },
+	{ SHADER_STATE_SHADOW_MAP, shader_vertex_normal_mvp, shader_pixel_shadow_map },
+	{ SHADER_STATE_LIGHT_SHADOW, shader_vertex_shadow_map_mvp, shader_pixel_texture_lambert_light_shadow },
 };
 
 func_pixel_shader get_pixel_shader(device_t* device)
 {
 	int i;
-	for (i = 0; i < MAX_RENDER_STATE; i++)
+	for (i = 0; i < MAX_SHADER_STATE; i++)
 	{
-		if (device->render_state == g_RenderComponent[i].RenderState)
+		if (device->shader_state == g_ShaderComponent[i].RenderState)
 		{
-			return g_RenderComponent[i].p_pixel_shader;
+			return g_ShaderComponent[i].p_pixel_shader;
 		}
 	}
 
@@ -252,11 +341,11 @@ func_pixel_shader get_pixel_shader(device_t* device)
 func_vertex_shader get_vertex_shader(device_t* device)
 {
 	int i;
-	for (i = 0; i < MAX_RENDER_STATE; i++)
+	for (i = 0; i < MAX_SHADER_STATE; i++)
 	{
-		if (device->render_state == g_RenderComponent[i].RenderState)
+		if (device->shader_state == g_ShaderComponent[i].RenderState)
 		{
-			return g_RenderComponent[i].p_vertex_shader;
+			return g_ShaderComponent[i].p_vertex_shader;
 		}
 	}
 

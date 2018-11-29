@@ -76,6 +76,16 @@ void vector_scale(vector_t *z, float scale)
 	z->z = z->z * scale;
 }
 
+// b = a
+void matrix_set(matrix_t* b, const matrix_t* a)
+{
+	int i, j;
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 4; j++)
+			b->m[i][j] = a->m[i][j];
+	}
+}
+
 // c = a + b
 void matrix_add(matrix_t *c, const matrix_t *a, const matrix_t *b) {
 	int i, j;
