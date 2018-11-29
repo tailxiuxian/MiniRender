@@ -488,7 +488,7 @@ int main(void)
 	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA, RENDER_STATE_SHADOW_MAP };
 	int indicator = 0;
 	int kbhit = 0;
-	float alpha = 0.0f;
+	float alpha = 1.0f;
 	float pos = 5;
 	int window_w = WINDOW_SIZE;
 	int window_h = WINDOW_SIZE;
@@ -562,7 +562,7 @@ int main(void)
 		}
 
 		device_clear(device, 1);
-		setup_camera(device, pos, pos, pos);
+		setup_camera(device, 0.0, 5.0, 0.0);
 		setup_shader(device);
 		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{

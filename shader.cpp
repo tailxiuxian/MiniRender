@@ -36,8 +36,6 @@ void shader_vertex_shadow_map_mvp(device_t* device, vertex_t* vertex, point_t* o
 	vector_t pos_in_light_space;
 	matrix_apply(&(pos_in_light_space), &(vertex->pos), &(device->uniform_matrix[0]));
 	transform_homogenize(&device->transform, &(vertex->vs_result[0]), &pos_in_light_space);
-
-	printf("111111111111111111111111111111:%f\n", vertex->vs_result[0].z);
 }
 
 unsigned char default_alpha = 255;
@@ -264,7 +262,7 @@ IUINT32 shader_pixel_texture_lambert_light_shadow(device_t* device, vertex_t* ve
 	float fShadow = 1.0f;
 	if (fDepth > 0.0f)
 	{
-		if (vertex->vs_result[0].z > (fDepth + 0.05f))
+		if (vertex->vs_result[0].z > (fDepth + 0.01f))
 		{
 			fShadow = 0.6f;
 		}
