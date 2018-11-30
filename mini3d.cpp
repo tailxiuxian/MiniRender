@@ -326,7 +326,8 @@ static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 阴影入射光
 
 static vector_t shadow_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
 static vector_t shadow_light_direction = { 0.0,5.0,0.0,0.0 }; // 阴影入射光方向
-static matrix_t shadow_light_transform;
+static matrix_t shadow_light_transform_box;
+static matrix_t shadow_light_transform_panel;
 static IUINT32 **shadow_texture = NULL;
 static IUINT32 *shadow_texture_buffer = NULL;
 
@@ -413,8 +414,6 @@ void setup_shader_parma(device_t *device, float x, float y, float z)
 	}
 	else if (device->shader_state == SHADER_STATE_LIGHT_SHADOW)
 	{
-		device_set_uniform_matrix_value(device, 0, &shadow_light_transform);
-
 		device_set_uniform_vector_value(device, 0, &shadow_light_energy);
 
 		device_set_uniform_vector_value(device, 1, &shadow_light_direction);
@@ -488,7 +487,7 @@ int main(void)
 	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA, RENDER_STATE_SHADOW_MAP };
 	int indicator = 0;
 	int kbhit = 0;
-	float alpha = 1.0f;
+	float alpha = -2.40f;
 	float pos = 5;
 	int window_w = WINDOW_SIZE;
 	int window_h = WINDOW_SIZE;
@@ -535,13 +534,14 @@ int main(void)
 		{
 			device->background = 0;
 			device_clear(device, 0);
-			setup_camera(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
+			setup_camera(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);			
 			setup_shader(device);
 			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
 			draw_backggroud(device);
+			shadow_light_transform_panel = device->transform.transform; // 获取平面的光源变换矩阵
 			draw_box(device, alpha);
+			shadow_light_transform_box = device->transform.transform; // 获取BOX的光源变换矩阵
 
-			
 			if (NULL == shadow_texture)
 			{
 				shadow_texture = new IUINT32*[device->height];
@@ -553,7 +553,6 @@ int main(void)
 			}
 
 			device_copy_framebuffer(device, shadow_texture); // 获取shadowmap
-			shadow_light_transform = device->transform.transform; // 获取光源变换矩阵
 			if (texture_shadow == 0)
 			{
 				texture_shadow = device_gen_texture(device);
@@ -562,7 +561,7 @@ int main(void)
 		}
 
 		device_clear(device, 1);
-		setup_camera(device, 0.0, 5.0, 0.0);
+		setup_camera(device, pos, pos, pos);
 		setup_shader(device);
 		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{
@@ -572,7 +571,9 @@ int main(void)
 		setup_shader_parma(device, pos, pos, pos);
 		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{
+			device_set_uniform_matrix_value(device, 0, &shadow_light_transform_panel);
 			draw_backggroud(device);
+			device_set_uniform_matrix_value(device, 0, &shadow_light_transform_box);
 		}
 		draw_box(device, alpha);
 

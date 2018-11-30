@@ -237,8 +237,6 @@ IUINT32 shader_pixel_normal_texture_alpha(device_t* device, vertex_t* vertex)
 
 IUINT32 shader_pixel_shadow_map(device_t* device, vertex_t* vertex)
 {
-	float w = 1.0f / vertex->rhw;
-
 	IUINT32 texture_R = 0;
 	IUINT32 texture_G = 0;
 	IUINT32 texture_B = IUINT32(255.0f * vertex->pos.z);
@@ -252,6 +250,18 @@ IUINT32 shader_pixel_shadow_map(device_t* device, vertex_t* vertex)
 
 IUINT32 shader_pixel_texture_lambert_light_shadow(device_t* device, vertex_t* vertex)
 {
+
+//	IUINT32 texture_R = 0;
+//	IUINT32 texture_G = 0;
+//	IUINT32 texture_B = IUINT32(255.0f * vertex->vs_result[0].z);
+//
+//#ifdef USE_GDI_VIEW
+//	return (texture_R << 16) | (texture_G << 8) | (texture_B);
+//#else
+//	return (texture_R << 24) | (texture_G << 16) | (texture_B << 8) | (default_alpha);
+//#endif
+
+
 	float w = 1.0f / vertex->rhw;
 
 	float u = vertex->tc.u * w;
