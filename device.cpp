@@ -8,7 +8,7 @@
 
 // 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
 void device_init(device_t *device, int width, int height, void *fb) {
-	int need = sizeof(void*) * (height * 2 + 1024 * MAX_TEXTURE_NUM) + width * height * 8;
+	int need = sizeof(void*) * (height * 2 * (MAX_FRAME_BUFFER + 1) + 1024 * MAX_TEXTURE_NUM) + width * height * 8 * (MAX_FRAME_BUFFER + 1);
 	char *ptr = (char*)malloc(need + 64);
 	char *framebuf, *zbuf;
 	int j;
@@ -16,6 +16,13 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->framebuffer = (IUINT32**)ptr;
 	device->zbuffer = (float**)(ptr + sizeof(void*) * height);
 	ptr += sizeof(void*) * height * 2;
+
+	for (j = 0; j < MAX_FRAME_BUFFER; j++)
+	{
+		device->framebuffer_array[j].framebuffer = (IUINT32**)ptr;
+		device->framebuffer_array[j].zbuffer = (float**)(ptr + sizeof(void*) * height);
+		ptr += sizeof(void*) * height * 2;
+	}
 
 	for (j = 0; j < MAX_TEXTURE_NUM; j++)
 	{
@@ -34,6 +41,19 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	for (j = 0; j < height; j++) {
 		device->framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
 		device->zbuffer[j] = (float*)(zbuf + width * 4 * j);
+	}
+
+	int i;
+	for (i = 0; i < MAX_FRAME_BUFFER; i++)
+	{
+		framebuf = (char*)ptr;
+		zbuf = (char*)ptr + width * height * 4;
+		ptr += width * height * 8;
+		for (j = 0; j < height; j++) {
+			device->framebuffer_array[i].framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
+			device->framebuffer_array[i].zbuffer[j] = (float*)(zbuf + width * 4 * j);
+			device->framebuffer_array[i].is_used = false;
+		}
 	}
 	
 	for (j = 0; j < MAX_TEXTURE_NUM; j++)
@@ -55,6 +75,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	transform_init(&device->transform, width, height);
 	device->render_state = RENDER_STATE_SHADOW_MAP;
 	device->function_state = 0;
+	device->bind_frame_buffer_idx = RENDER_NO_SET_FRAMEBUFFER_INDEX;
 }
 
 void device_destroy(device_t *device) {
@@ -108,7 +129,87 @@ void device_clear(device_t *device, int mode) {
 	}
 }
 
-void device_copy_framebuffer(device_t* device, IUINT32** buffer)
+int device_gen_frame_buffer(device_t* device)
+{
+	for (int i = 0; i < MAX_FRAME_BUFFER; i++)
+	{
+		if (device->framebuffer_array[i].is_used == false)
+		{
+			device->framebuffer_array[i].is_used = true;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+bool device_bind_framebuffer(device_t* device, int framebuffer_id)
+{
+	if (framebuffer_id < 0 || framebuffer_id >= MAX_FRAME_BUFFER)
+	{
+		return false;
+	}
+
+	if (device->framebuffer_array[framebuffer_id].is_used == false)
+	{
+		return false;
+	}
+
+	device->bind_frame_buffer_idx = framebuffer_id;
+	return true;
+}
+
+bool device_unbind_framebuffer(device_t* device, int framebuffer_id)
+{
+	if (framebuffer_id < 0 || framebuffer_id >= MAX_FRAME_BUFFER)
+	{
+		return false;
+	}
+
+	if (device->framebuffer_array[framebuffer_id].is_used == false)
+	{
+		return false;
+	}
+
+	device->bind_frame_buffer_idx = RENDER_NO_SET_FRAMEBUFFER_INDEX;
+	return true;
+}
+
+void device_clear_framebuffer(device_t* device,  int framebuffer_id, int mode)
+{
+	int y, x, height = device->height;
+	for (y = 0; y < device->height; y++) {
+		IUINT32 *dst = device->framebuffer_array[framebuffer_id].framebuffer[y];
+		IUINT32 cc = (height - 1 - y) * 230 / (height - 1);
+
+#ifdef USE_GDI_VIEW
+		cc = (cc << 16) | (cc << 8) | cc;
+#else
+		cc = (cc << 24) | (cc << 16) | (cc << 8) | (255);
+#endif
+
+		if (mode == 0) cc = device->background;
+		for (x = device->width; x > 0; dst++, x--) dst[0] = cc;
+	}
+	for (y = 0; y < device->height; y++) {
+		float *dst = device->framebuffer_array[framebuffer_id].zbuffer[y];
+		for (x = device->width; x > 0; dst++, x--) dst[0] = 0.0f;
+	}
+}
+
+void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbuffer)
+{
+	int y, x, height = device->height;
+	for (y = 0; y < device->height; y++) {
+		;
+		for (x = 0; x < device->width; x++)
+		{
+			zbuffer[y][x] = device->framebuffer_array[framebuffer_id].zbuffer[y][x];
+		}
+	}
+}
+
+void device_copy_colorbuffer(device_t* device, IUINT32** buffer)
 {
 	int y, x, height = device->height;
 	for (y = 0; y < device->height; y++) {;

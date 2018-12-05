@@ -18,9 +18,17 @@ typedef struct {
 	bool is_used;
 } texture_t;
 
+typedef struct {
+	IUINT32 **framebuffer;
+	float **zbuffer;
+	bool is_used;
+} framebuffer_t;
+
 #define MAX_UNIFORM_NUM 128
 #define MAX_TEXTURE_NUM 16
 #define MAX_VERTEX_NUM 4
+#define MAX_FRAME_BUFFER 4
+#define RENDER_NO_SET_FRAMEBUFFER_INDEX -1
 
 typedef struct {
 	int srcState;
@@ -39,6 +47,9 @@ typedef struct {
 	IUINT32 foreground;         // 线框颜色
 	int function_state;			// 功能状态		
 	texture_t texture_array[MAX_TEXTURE_NUM];// Texture
+	framebuffer_t framebuffer_array[MAX_FRAME_BUFFER]; // framebuffer
+
+	int bind_frame_buffer_idx;
 
 	//----------------------- shader 信息
 
@@ -80,6 +91,12 @@ int function_cull_back(device_t* device, point_t* p1, point_t* p2, point_t* p3);
 
 device_t* get_device_inst();
 
-void device_copy_framebuffer(device_t* device, IUINT32** buffer);
+int device_gen_frame_buffer(device_t* device);
+void device_clear_framebuffer(device_t* device, int framebuffer_id, int mode);
+void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbuffer);
+bool device_bind_framebuffer(device_t* device, int framebuffer_id);
+bool device_unbind_framebuffer(device_t* device, int framebuffer_id);
+
+void device_copy_colorbuffer(device_t* device, IUINT32** buffer);
 
 void device_set_shader_state(device_t* device, int shader_state);

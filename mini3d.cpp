@@ -38,6 +38,7 @@ static int default_texture_id = 0;
 static int texture_bmp1 = 0;
 static int texture_bmp2 = 0;
 static int texture_shadow = 0;
+static int framebuffer_shadow = 0;
 
 //=====================================================================
 // 绘制区域
@@ -102,6 +103,12 @@ void device_draw_line(device_t *device, int x1, int y1, int x2, int y2, IUINT32 
 void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	IUINT32 *framebuffer = device->framebuffer[scanline->y];
 	float *zbuffer = device->zbuffer[scanline->y];
+	if (device->bind_frame_buffer_idx >= 0 && device->bind_frame_buffer_idx < MAX_FRAME_BUFFER && device->framebuffer_array[device->bind_frame_buffer_idx].is_used)
+	{
+		framebuffer = device->framebuffer_array[device->bind_frame_buffer_idx].framebuffer[scanline->y];
+		zbuffer = device->framebuffer_array[device->bind_frame_buffer_idx].zbuffer[scanline->y];
+	}
+
 	int x = scanline->x;
 	int w = scanline->w;
 	int width = device->width;
@@ -552,7 +559,7 @@ int main(void)
 				}
 			}
 
-			device_copy_framebuffer(device, shadow_texture); // 获取shadowmap
+			device_copy_colorbuffer(device, shadow_texture); // 获取shadowmap
 			if (texture_shadow == 0)
 			{
 				texture_shadow = device_gen_texture(device);
