@@ -177,6 +177,16 @@ bool device_unbind_framebuffer(device_t* device, int framebuffer_id)
 
 void device_clear_framebuffer(device_t* device,  int framebuffer_id, int mode)
 {
+	if (framebuffer_id < 0 || framebuffer_id > MAX_FRAME_BUFFER)
+	{
+		return;
+	}
+
+	if (device->framebuffer_array[framebuffer_id].is_used == false)
+	{
+		return;
+	}
+
 	int y, x, height = device->height;
 	for (y = 0; y < device->height; y++) {
 		IUINT32 *dst = device->framebuffer_array[framebuffer_id].framebuffer[y];
@@ -197,8 +207,40 @@ void device_clear_framebuffer(device_t* device,  int framebuffer_id, int mode)
 	}
 }
 
+void device_copy_framebuffer(device_t* device, int framebuffer_id, IUINT32** buffer)
+{
+	if (framebuffer_id < 0 || framebuffer_id > MAX_FRAME_BUFFER)
+	{
+		return;
+	}
+
+	if (device->framebuffer_array[framebuffer_id].is_used == false)
+	{
+		return;
+	}
+	
+	int y, x, height = device->height;
+	for (y = 0; y < device->height; y++) {
+		;
+		for (x = 0; x < device->width; x++)
+		{
+			buffer[y][x] = device->framebuffer_array[framebuffer_id].framebuffer[y][x];
+		}
+	}
+}
+
 void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbuffer)
 {
+	if (framebuffer_id < 0 || framebuffer_id > MAX_FRAME_BUFFER)
+	{
+		return;
+	}
+
+	if (device->framebuffer_array[framebuffer_id].is_used == false)
+	{
+		return;
+	}
+
 	int y, x, height = device->height;
 	for (y = 0; y < device->height; y++) {
 		;

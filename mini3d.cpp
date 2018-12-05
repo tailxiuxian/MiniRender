@@ -539,8 +539,15 @@ int main(void)
 		// 绘制shadowmap
 		if (device->render_state & RENDER_STATE_SHADOW_MAP)
 		{
+			if (framebuffer_shadow == 0)
+			{
+				framebuffer_shadow = device_gen_frame_buffer(device);
+			}
+
+			device_bind_framebuffer(device, framebuffer_shadow);
+
 			device->background = 0;
-			device_clear(device, 0);
+			device_clear_framebuffer(device, framebuffer_shadow, 0);
 			setup_camera(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);			
 			setup_shader(device);
 			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
@@ -559,7 +566,9 @@ int main(void)
 				}
 			}
 
-			device_copy_colorbuffer(device, shadow_texture); // 获取shadowmap
+			device_copy_framebuffer(device, framebuffer_shadow, shadow_texture); // 获取shadowmap
+			device_unbind_framebuffer(device, framebuffer_shadow);
+
 			if (texture_shadow == 0)
 			{
 				texture_shadow = device_gen_texture(device);

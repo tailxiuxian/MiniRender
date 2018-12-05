@@ -93,6 +93,7 @@ device_t* get_device_inst();
 
 int device_gen_frame_buffer(device_t* device);
 void device_clear_framebuffer(device_t* device, int framebuffer_id, int mode);
+void device_copy_framebuffer(device_t* device, int framebuffer_id, IUINT32** buffer);
 void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbuffer);
 bool device_bind_framebuffer(device_t* device, int framebuffer_id);
 bool device_unbind_framebuffer(device_t* device, int framebuffer_id);
