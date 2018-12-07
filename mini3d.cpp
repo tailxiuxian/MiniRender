@@ -46,7 +46,7 @@ static int framebuffer_shadow = 0;
 
 // 画点
 void device_pixel(device_t *device, int x, int y, IUINT32 color) {
-	if (((IUINT32)x) < (IUINT32)device->width && ((IUINT32)y) < (IUINT32)device->height) {
+	if (((IUINT32)x) < (IUINT32)device->framebuffer_width && ((IUINT32)y) < (IUINT32)device->framebuffer_height) {
 		device->framebuffer[y][x] = color;
 	}
 }
@@ -111,7 +111,7 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 
 	int x = scanline->x;
 	int w = scanline->w;
-	int width = device->width;
+	int width = device->framebuffer_width;
 	int render_state = device->render_state;
 	int function_state = device->function_state;
 	for (; w > 0; x++, w--) {
@@ -123,7 +123,6 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 				if (p_shader)
 				{
 					framebuffer[x] = p_shader(device, &(scanline->v));
-					float w = 1.0f / rhw;
 					zbuffer[x] = rhw;
 				}
 #else
@@ -134,7 +133,6 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 					if (is_opaque_pixel_color(color))
 					{
 						framebuffer[x] = color;
-						float w = 1.0f / rhw;
 						zbuffer[x] = rhw;
 					}
 					else {
@@ -156,12 +154,12 @@ void device_render_trap(device_t *device, trapezoid_t *trap) {
 	top = (int)(trap->top + 0.5f);
 	bottom = (int)(trap->bottom + 0.5f);
 	for (j = top; j < bottom; j++) {
-		if (j >= 0 && j < device->height) {
+		if (j >= 0 && j < device->framebuffer_height) {
 			trapezoid_edge_interp(trap, (float)j + 0.5f);
 			trapezoid_init_scan_line(trap, &scanline, j);
 			device_draw_scanline(device, &scanline);
 		}
-		if (j >= device->height) break;
+		if (j >= device->framebuffer_height) break;
 	}
 }
 
@@ -537,7 +535,7 @@ int main(void)
 		}
 
 		// 绘制shadowmap
-		if (device->render_state & RENDER_STATE_SHADOW_MAP)
+		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{
 			if (framebuffer_shadow == 0)
 			{
@@ -558,11 +556,11 @@ int main(void)
 
 			if (NULL == shadow_texture)
 			{
-				shadow_texture = new IUINT32*[device->height];
-				shadow_texture_buffer = new IUINT32[device->height * device->width];
-				for (int i = 0; i < device->height; i++)
+				shadow_texture = new IUINT32*[MAX_FRAME_BUFFER_HEIGHT];
+				shadow_texture_buffer = new IUINT32[MAX_FRAME_BUFFER_HEIGHT * MAX_FRAME_BUFFER_WIDTH];
+				for (int i = 0; i < MAX_FRAME_BUFFER_HEIGHT; i++)
 				{
-					shadow_texture[i] = shadow_texture_buffer + device->width * i;
+					shadow_texture[i] = shadow_texture_buffer + MAX_FRAME_BUFFER_WIDTH * i;
 				}
 			}
 
@@ -573,7 +571,7 @@ int main(void)
 			{
 				texture_shadow = device_gen_texture(device);
 			}
-			device_set_texture(device, shadow_texture_buffer, device->width * 4, device->width, device->height, texture_shadow);
+			device_set_texture(device, shadow_texture_buffer, MAX_FRAME_BUFFER_WIDTH * 4, device->framebuffer_width, device->framebuffer_height, texture_shadow);
 		}
 
 		device_clear(device, 1);
@@ -597,7 +595,7 @@ int main(void)
 		draw_screen_title(device);
 		screen_update();
 #else		
-		updateFrameBufferData(device->framebuffer);
+		updateFrameBufferData(device);
 		drawGLTitle(device);
 		drawGLView();
 #endif

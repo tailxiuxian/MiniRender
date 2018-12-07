@@ -30,6 +30,9 @@ typedef struct {
 #define MAX_FRAME_BUFFER 4
 #define RENDER_NO_SET_FRAMEBUFFER_INDEX -1
 
+#define MAX_FRAME_BUFFER_HEIGHT 1024
+#define MAX_FRAME_BUFFER_WIDTH 1024
+
 typedef struct {
 	int srcState;
 	int dstState;
@@ -37,8 +40,10 @@ typedef struct {
 
 typedef struct {
 	transform_t transform;      // 坐标变换器
-	int width;                  // 窗口宽度
-	int height;                 // 窗口高度
+	int screen_width;                  // 窗口宽度
+	int screen_height;                 // 窗口高度
+	int framebuffer_width;		// 使用的framebuffer宽度
+	int framebuffer_height;		// 使用的framebuffer高度
 	IUINT32 **framebuffer;      // 像素缓存：framebuffer[y] 代表第 y行
 	float **zbuffer;            // 深度缓存：zbuffer[y] 为第 y行指针
 	int render_state;           // 渲染状态
@@ -70,6 +75,7 @@ typedef struct {
 }	device_t;
 
 #define FUNC_STATE_CULL_BACK		1		// 背部剔除
+#define FUNC_STATE_ANTI_ALIAS_FSAA	2		// FSAA 超采样反走样
 
 void device_init(device_t *device, int width, int height, void *fb); //初始化渲染设备
 void device_destroy(device_t *device); // 删除设备		   
@@ -101,3 +107,8 @@ bool device_unbind_framebuffer(device_t* device, int framebuffer_id);
 void device_copy_colorbuffer(device_t* device, IUINT32** buffer);
 
 void device_set_shader_state(device_t* device, int shader_state);
+
+unsigned int device_get_framebuffer_data(device_t* device, int h, int w);
+
+unsigned int device_enable_render_func_state(device_t* device, int iState);
+unsigned int device_disable_render_func_state(device_t* device, int iState);

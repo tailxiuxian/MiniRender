@@ -5,5 +5,5 @@
 void initGLView(int w, int h);
 void destroyGLView();
 void drawGLView();
-void updateFrameBufferData(unsigned int** frameBuffer);
+void updateFrameBufferData(device_t* device);
 void drawGLTitle(device_t *device);

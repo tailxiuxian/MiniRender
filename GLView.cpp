@@ -195,6 +195,16 @@ static void dispatch_key_event(int keyCode)
 
 		break;
 	}
+	case GLFW_KEY_F2:
+		if (device->function_state & FUNC_STATE_ANTI_ALIAS_FSAA)
+		{
+			device_disable_render_func_state(device, FUNC_STATE_ANTI_ALIAS_FSAA);
+		}
+		else
+		{
+			device_enable_render_func_state(device, FUNC_STATE_ANTI_ALIAS_FSAA);
+		}
+		break;
 	case GLFW_KEY_ESCAPE:
 	{
 		set_key_quit();
@@ -293,13 +303,13 @@ void drawGLView()
 	glfwSwapBuffers(gl_window);
 }
 
-void updateFrameBufferData(unsigned int** frameBuffer)
+void updateFrameBufferData(device_t* device)
 {
 	for (int height = 0; height < texture_size_h; height++)
 	{
 		for (int width = 0; width < texture_size_w; width++)
 		{
-			unsigned int data = frameBuffer[height][width];
+			unsigned int data = device_get_framebuffer_data(device, height, width);
 			unsigned char* pPixel = &gl_texture_data[height * texture_size_w * 4 + width * 4];
 			*(pPixel) = (data >> 24) & 0xFF;
 			*(pPixel + 1) = (data >> 16) & 0xFF;

@@ -258,5 +258,10 @@ void draw_screen_title(device_t *device)
 		lstrcat(title, _T(" - culling back"));
 	}
 
+	if (device->function_state & FUNC_STATE_ANTI_ALIAS_FSAA)
+	{
+		lstrcat(title, _T(" - FSAA"));
+	}
+
 	set_screen_title(title);
 }

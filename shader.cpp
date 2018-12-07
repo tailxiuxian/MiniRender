@@ -267,12 +267,12 @@ IUINT32 shader_pixel_texture_lambert_light_shadow(device_t* device, vertex_t* ve
 	float u = vertex->tc.u * w;
 	float v = vertex->tc.v * w;
 
-	IUINT32 depth = device_texture_read(device,vertex->vs_result[0].x / device->width,vertex->vs_result[0].y / device->height,device->texture_id[1]);
+	IUINT32 depth = device_texture_read(device,vertex->vs_result[0].x / device->framebuffer_width,vertex->vs_result[0].y / device->framebuffer_height,device->texture_id[1]);
 	float fDepth = (depth >> 8) / 255.0f;
 	float fShadow = 1.0f;
 	if (fDepth > 0.0f)
 	{
-		if (vertex->vs_result[0].z > (fDepth + 0.01f))
+		if (vertex->vs_result[0].z >= (fDepth + 0.01f))
 		{
 			fShadow = 0.6f;
 		}

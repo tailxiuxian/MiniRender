@@ -5,23 +5,24 @@
 
 #include "device.h"
 #include "renderstate.h"
+#include "comm_func.h"
 
 // 设备初始化，fb为外部帧缓存，非 NULL 将引用外部帧缓存（每行 4字节对齐）
 void device_init(device_t *device, int width, int height, void *fb) {
-	int need = sizeof(void*) * (height * 2 * (MAX_FRAME_BUFFER + 1) + 1024 * MAX_TEXTURE_NUM) + width * height * 8 * (MAX_FRAME_BUFFER + 1);
+	int need = sizeof(void*) * (MAX_FRAME_BUFFER_HEIGHT * 2 * (MAX_FRAME_BUFFER + 1) + 1024 * MAX_TEXTURE_NUM) + MAX_FRAME_BUFFER_WIDTH * MAX_FRAME_BUFFER_HEIGHT * 8 * (MAX_FRAME_BUFFER + 1);
 	char *ptr = (char*)malloc(need + 64);
 	char *framebuf, *zbuf;
 	int j;
 	assert(ptr);
 	device->framebuffer = (IUINT32**)ptr;
-	device->zbuffer = (float**)(ptr + sizeof(void*) * height);
-	ptr += sizeof(void*) * height * 2;
+	device->zbuffer = (float**)(ptr + sizeof(void*) * MAX_FRAME_BUFFER_HEIGHT);
+	ptr += sizeof(void*) * MAX_FRAME_BUFFER_HEIGHT * 2;
 
 	for (j = 0; j < MAX_FRAME_BUFFER; j++)
 	{
 		device->framebuffer_array[j].framebuffer = (IUINT32**)ptr;
-		device->framebuffer_array[j].zbuffer = (float**)(ptr + sizeof(void*) * height);
-		ptr += sizeof(void*) * height * 2;
+		device->framebuffer_array[j].zbuffer = (float**)(ptr + sizeof(void*) * MAX_FRAME_BUFFER_HEIGHT);
+		ptr += sizeof(void*) * MAX_FRAME_BUFFER_HEIGHT * 2;
 	}
 
 	for (j = 0; j < MAX_TEXTURE_NUM; j++)
@@ -31,27 +32,27 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	}
 	
 	framebuf = (char*)ptr;
-	zbuf = (char*)ptr + width * height * 4;
-	ptr += width * height * 8;
+	zbuf = (char*)ptr + MAX_FRAME_BUFFER_WIDTH * MAX_FRAME_BUFFER_HEIGHT * 4;
+	ptr += MAX_FRAME_BUFFER_WIDTH * MAX_FRAME_BUFFER_HEIGHT * 8;
 	if (fb != NULL)
 	{
 		framebuf = (char*)fb;
 	}
 
-	for (j = 0; j < height; j++) {
-		device->framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
-		device->zbuffer[j] = (float*)(zbuf + width * 4 * j);
+	for (j = 0; j < MAX_FRAME_BUFFER_HEIGHT; j++) {
+		device->framebuffer[j] = (IUINT32*)(framebuf + MAX_FRAME_BUFFER_WIDTH * 4 * j);
+		device->zbuffer[j] = (float*)(zbuf + MAX_FRAME_BUFFER_WIDTH * 4 * j);
 	}
 
 	int i;
 	for (i = 0; i < MAX_FRAME_BUFFER; i++)
 	{
 		framebuf = (char*)ptr;
-		zbuf = (char*)ptr + width * height * 4;
-		ptr += width * height * 8;
-		for (j = 0; j < height; j++) {
-			device->framebuffer_array[i].framebuffer[j] = (IUINT32*)(framebuf + width * 4 * j);
-			device->framebuffer_array[i].zbuffer[j] = (float*)(zbuf + width * 4 * j);
+		zbuf = (char*)ptr + MAX_FRAME_BUFFER_WIDTH * MAX_FRAME_BUFFER_HEIGHT * 4;
+		ptr += MAX_FRAME_BUFFER_WIDTH * MAX_FRAME_BUFFER_HEIGHT * 8;
+		for (j = 0; j < MAX_FRAME_BUFFER_HEIGHT; j++) {
+			device->framebuffer_array[i].framebuffer[j] = (IUINT32*)(framebuf + MAX_FRAME_BUFFER_WIDTH * 4 * j);
+			device->framebuffer_array[i].zbuffer[j] = (float*)(zbuf + MAX_FRAME_BUFFER_WIDTH * 4 * j);
 			device->framebuffer_array[i].is_used = false;
 		}
 	}
@@ -68,11 +69,13 @@ void device_init(device_t *device, int width, int height, void *fb) {
 		device->texture_array[j].is_used = false;
 	}
 	
-	device->width = width;
-	device->height = height;
+	device->screen_width = width;
+	device->screen_height = height;
+	device->framebuffer_width = width;
+	device->framebuffer_height = height;
 	device->background = 0xc0c0c0ff;
 	device->foreground = 0;
-	transform_init(&device->transform, width, height);
+	transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
 	device->render_state = RENDER_STATE_SHADOW_MAP;
 	device->function_state = 0;
 	device->bind_frame_buffer_idx = RENDER_NO_SET_FRAMEBUFFER_INDEX;
@@ -109,8 +112,8 @@ void device_set_texture(device_t *device, void *bits, long pitch, int w, int h, 
 
 // 清空 framebuffer 和 zbuffer
 void device_clear(device_t *device, int mode) {
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {
+	int y, x, height = device->framebuffer_height;
+	for (y = 0; y < device->framebuffer_height; y++) {
 		IUINT32 *dst = device->framebuffer[y];
 		IUINT32 cc = (height - 1 - y) * 230 / (height - 1);
 		
@@ -121,11 +124,11 @@ void device_clear(device_t *device, int mode) {
 #endif
 
 		if (mode == 0) cc = device->background;
-		for (x = device->width; x > 0; dst++, x--) dst[0] = cc;
+		for (x = device->framebuffer_width; x > 0; dst++, x--) dst[0] = cc;
 	}
-	for (y = 0; y < device->height; y++) {
+	for (y = 0; y < device->framebuffer_height; y++) {
 		float *dst = device->zbuffer[y];
-		for (x = device->width; x > 0; dst++, x--) dst[0] = 0.0f;
+		for (x = device->framebuffer_width; x > 0; dst++, x--) dst[0] = 0.0f;
 	}
 }
 
@@ -187,8 +190,8 @@ void device_clear_framebuffer(device_t* device,  int framebuffer_id, int mode)
 		return;
 	}
 
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {
+	int y, x, height = device->framebuffer_height;
+	for (y = 0; y < device->framebuffer_height; y++) {
 		IUINT32 *dst = device->framebuffer_array[framebuffer_id].framebuffer[y];
 		IUINT32 cc = (height - 1 - y) * 230 / (height - 1);
 
@@ -199,11 +202,11 @@ void device_clear_framebuffer(device_t* device,  int framebuffer_id, int mode)
 #endif
 
 		if (mode == 0) cc = device->background;
-		for (x = device->width; x > 0; dst++, x--) dst[0] = cc;
+		for (x = device->framebuffer_width; x > 0; dst++, x--) dst[0] = cc;
 	}
-	for (y = 0; y < device->height; y++) {
+	for (y = 0; y < device->framebuffer_height; y++) {
 		float *dst = device->framebuffer_array[framebuffer_id].zbuffer[y];
-		for (x = device->width; x > 0; dst++, x--) dst[0] = 0.0f;
+		for (x = device->framebuffer_width; x > 0; dst++, x--) dst[0] = 0.0f;
 	}
 }
 
@@ -219,10 +222,10 @@ void device_copy_framebuffer(device_t* device, int framebuffer_id, IUINT32** buf
 		return;
 	}
 	
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {
+	int y, x, height = device->framebuffer_height;
+	for (y = 0; y < device->framebuffer_height; y++) {
 		;
-		for (x = 0; x < device->width; x++)
+		for (x = 0; x < device->framebuffer_width; x++)
 		{
 			buffer[y][x] = device->framebuffer_array[framebuffer_id].framebuffer[y][x];
 		}
@@ -241,10 +244,10 @@ void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbu
 		return;
 	}
 
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {
+	int y, x, height = device->framebuffer_height;
+	for (y = 0; y < device->framebuffer_height; y++) {
 		;
-		for (x = 0; x < device->width; x++)
+		for (x = 0; x < device->framebuffer_width; x++)
 		{
 			zbuffer[y][x] = device->framebuffer_array[framebuffer_id].zbuffer[y][x];
 		}
@@ -253,9 +256,9 @@ void device_copy_framebuffer_z(device_t* device, int framebuffer_id, float** zbu
 
 void device_copy_colorbuffer(device_t* device, IUINT32** buffer)
 {
-	int y, x, height = device->height;
-	for (y = 0; y < device->height; y++) {;
-		for (x = 0; x < device->width; x++)
+	int y, x, height = device->framebuffer_height;
+	for (y = 0; y < device->framebuffer_height; y++) {;
+		for (x = 0; x < device->framebuffer_width; x++)
 		{
 			buffer[y][x] = device->framebuffer[y][x];
 		}
@@ -338,6 +341,83 @@ void device_bind_texture(device_t* device, int iIndex, int texture_id)
 
 		device->texture_id[iIndex] = texture_id;
 	}
+}
+
+unsigned int device_get_framebuffer_data(device_t* device, int h, int w)
+{
+	if (device->function_state & FUNC_STATE_ANTI_ALIAS_FSAA)
+	{
+		unsigned int R = 0;
+		unsigned int G = 0;
+		unsigned int B = 0;
+		unsigned int A = 0;
+
+		static unsigned int pixel_array[4];
+		pixel_array[0] = device->framebuffer[2 * h][2 * w];
+		pixel_array[1] = device->framebuffer[2 * h][2 * w + 1];
+		pixel_array[2] = device->framebuffer[2 * h + 1][2 * w];
+		pixel_array[3] = device->framebuffer[2 * h + 1][2 * w + 1];
+
+		for (int i = 0; i < 4; i++)
+		{
+			R += Get_R(pixel_array[i]) / 4;
+			G += Get_G(pixel_array[i]) / 4;
+			B += Get_B(pixel_array[i]) / 4;
+			A += Get_A(pixel_array[i]) / 4;
+		}
+
+		R = CMID(R, 0, 255);
+		G = CMID(G, 0, 255);
+		B = CMID(B, 0, 255);
+		A = CMID(A, 0, 255);
+
+		return (R << 24) | (G << 16) | (B << 8) | (A);
+	}
+	else
+	{
+		return device->framebuffer[h][w];
+	}
+}
+
+unsigned int device_enable_render_func_state(device_t* device, int iState)
+{
+	if (iState == FUNC_STATE_ANTI_ALIAS_FSAA)
+	{
+		if (device->function_state & FUNC_STATE_ANTI_ALIAS_FSAA)
+		{
+			return 1;
+		}
+
+		if (device->screen_height * 2 > MAX_FRAME_BUFFER_HEIGHT || device->screen_width * 2 > MAX_FRAME_BUFFER_WIDTH)
+		{
+			return 2;
+		}
+
+		device->framebuffer_width = device->screen_width * 2;
+		device->framebuffer_height = device->screen_height * 2;
+		transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
+		device->function_state |= iState;
+		return 0;
+	}
+
+	return 3;
+}
+
+unsigned int device_disable_render_func_state(device_t* device, int iState)
+{
+	if (iState == FUNC_STATE_ANTI_ALIAS_FSAA)
+	{
+		if (device->function_state & FUNC_STATE_ANTI_ALIAS_FSAA)
+		{
+			device->framebuffer_width = device->screen_width;
+			device->framebuffer_height = device->screen_height;
+			transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
+			device->function_state &= ~(iState);
+			return 0;
+		}
+	}
+
+	return 3;
 }
 
 void device_set_blend_state(device_t* device, blendstate_t blend_state)
