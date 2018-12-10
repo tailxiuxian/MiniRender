@@ -186,11 +186,11 @@ static void dispatch_key_event(int keyCode)
 	{
 		if (device->function_state & FUNC_STATE_CULL_BACK)
 		{
-			device->function_state &= ~(FUNC_STATE_CULL_BACK);
+			device_disable_render_func_state(device, FUNC_STATE_CULL_BACK);
 		}
 		else
 		{
-			device->function_state |= FUNC_STATE_CULL_BACK;
+			device_enable_render_func_state(device, FUNC_STATE_CULL_BACK);
 		}
 
 		break;

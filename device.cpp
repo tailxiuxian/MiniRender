@@ -396,7 +396,17 @@ unsigned int device_enable_render_func_state(device_t* device, int iState)
 		device->framebuffer_width = device->screen_width * 2;
 		device->framebuffer_height = device->screen_height * 2;
 		transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
-		device->function_state |= iState;
+		device->function_state |= FUNC_STATE_ANTI_ALIAS_FSAA;
+		return 0;
+	}
+	else if (iState == FUNC_STATE_CULL_BACK)
+	{
+		if (device->function_state & FUNC_STATE_CULL_BACK)
+		{
+			return 1;
+		}
+
+		device->function_state |= FUNC_STATE_CULL_BACK;
 		return 0;
 	}
 
@@ -412,7 +422,15 @@ unsigned int device_disable_render_func_state(device_t* device, int iState)
 			device->framebuffer_width = device->screen_width;
 			device->framebuffer_height = device->screen_height;
 			transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
-			device->function_state &= ~(iState);
+			device->function_state &= ~(FUNC_STATE_ANTI_ALIAS_FSAA);
+			return 0;
+		}
+	}
+	else if (iState == FUNC_STATE_CULL_BACK)
+	{
+		if (device->function_state & FUNC_STATE_CULL_BACK)
+		{
+			device->function_state &= ~(FUNC_STATE_CULL_BACK);
 			return 0;
 		}
 	}
