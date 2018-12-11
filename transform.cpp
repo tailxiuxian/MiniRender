@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "transform.h"
 
 // 矩阵更新，计算 transform = world * view * projection
@@ -34,6 +35,20 @@ int transform_check_cvv(const vector_t *v) {
 	if (v->y < -w) check |= 16;
 	if (v->y > w) check |= 32;
 	return check;
+}
+
+bool calc_cvv_cut_vertex_ratio(const vector_t *c1, const vector_t *c2, float* fRatio)
+{
+	int check1 = transform_check_cvv(c1);
+	int check2 = transform_check_cvv(c2);
+
+	if ((check1 & 1) == (check2 & 1)) // 都在近裁剪的内侧或者外侧 不用裁剪
+	{
+		return false;
+	}
+
+	*(fRatio) = -(c1->z / (c2->z - c1->z));
+	return true;
 }
 
 // 归一化，得到屏幕坐标

@@ -163,11 +163,51 @@ void device_render_trap(device_t *device, trapezoid_t *trap) {
 	}
 }
 
+static void device_draw_triangles(device_t *device, 
+	vector_t *k1, vector_t *k2, vector_t *k3,
+	vertex_t *s1, vertex_t *s2, vertex_t *s3)
+{
+	point_t p1, p2, p3;
+	// 归一化
+	transform_homogenize(&device->transform, &p1, k1);
+	transform_homogenize(&device->transform, &p2, k2);
+	transform_homogenize(&device->transform, &p3, k3);
+
+	// 纹理或者色彩绘制
+	if (device->render_state != 0) {
+		vertex_t t1 = *s1, t2 = *s2, t3 = *s3;
+		trapezoid_t traps[2];
+		int n;
+
+		t1.pos = p1;
+		t2.pos = p2;
+		t3.pos = p3;
+		t1.pos.w = k1->w;
+		t2.pos.w = k2->w;
+		t3.pos.w = k3->w;
+
+		vertex_rhw_init(&t1);	// 初始化 w
+		vertex_rhw_init(&t2);	// 初始化 w
+		vertex_rhw_init(&t3);	// 初始化 w
+
+								// 拆分三角形为0-2个梯形，并且返回可用梯形数量
+		n = trapezoid_init_triangle(traps, &t1, &t2, &t3);
+
+		if (n >= 1) device_render_trap(device, &traps[0]);
+		if (n >= 2) device_render_trap(device, &traps[1]);
+	}
+
+	if (device->render_state == RENDER_STATE_WIREFRAME) {		// 线框绘制
+		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, device->foreground);
+		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p3.x, (int)p3.y, device->foreground);
+		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
+	}
+}
+
 // 根据 render_state 绘制原始三角形
 void device_draw_primitive(device_t *device, vertex_t *v1, 
 	vertex_t *v2, vertex_t *v3) {
 	point_t p1, p2, p3, c1, c2, c3;
-	int render_state = device->render_state;
 
 	func_vertex_shader p_shader = get_vertex_shader(device);
 	if (p_shader)
@@ -182,44 +222,142 @@ void device_draw_primitive(device_t *device, vertex_t *v1,
 
 	// 裁剪，注意此处可以完善为具体判断几个点在 cvv内以及同cvv相交平面的坐标比例
 	// 进行进一步精细裁剪，将一个分解为几个完全处在 cvv内的三角形
-	if (transform_check_cvv(&c1) != 0) return;
-	if (transform_check_cvv(&c2) != 0) return;
-	if (transform_check_cvv(&c3) != 0) return;
+	int check1 = transform_check_cvv(&c1);
+	int check2 = transform_check_cvv(&c2);
+	int check3 = transform_check_cvv(&c3);
 
-	// 归一化
-	transform_homogenize(&device->transform, &p1, &c1);
-	transform_homogenize(&device->transform, &p2, &c2);
-	transform_homogenize(&device->transform, &p3, &c3);
+	int check_sum = 0;
+	check_sum += (check1 & 1);
+	check_sum += (check2 & 1);
+	check_sum += (check3 & 1);
 
-	// 纹理或者色彩绘制
-	if (render_state != 0) {
-		vertex_t t1 = *v1, t2 = *v2, t3 = *v3;
-		trapezoid_t traps[2];
-		int n;
-
-		t1.pos = p1; 
-		t2.pos = p2;
-		t3.pos = p3;
-		t1.pos.w = c1.w;
-		t2.pos.w = c2.w;
-		t3.pos.w = c3.w;
-
-		vertex_rhw_init(&t1);	// 初始化 w
-		vertex_rhw_init(&t2);	// 初始化 w
-		vertex_rhw_init(&t3);	// 初始化 w
-		
-		// 拆分三角形为0-2个梯形，并且返回可用梯形数量
-		n = trapezoid_init_triangle(traps, &t1, &t2, &t3);
-
-		if (n >= 1) device_render_trap(device, &traps[0]);
-		if (n >= 2) device_render_trap(device, &traps[1]);
+	if (check_sum == 3) // 全在外侧
+	{
+		return;
 	}
-	
-	if (render_state == RENDER_STATE_WIREFRAME) {		// 线框绘制
-		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, device->foreground);
-		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p3.x, (int)p3.y, device->foreground);
-		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
+
+	float ratio;
+	vertex_t y;
+	vertex_t s1, s2, s3, s4;
+	vector_t k1, k2, k3, k4;
+	if (check_sum == 2)
+	{
+		if ((check1 & 1) == 0)
+		{
+			s1 = *v1;
+			k1 = c1;
+
+			calc_cvv_cut_vertex_ratio(&c1, &c2, &ratio);
+			vertex_interp(&s2, v1, v2, ratio);
+			vector_interp(&k2, &c1, &c2, ratio);
+
+			calc_cvv_cut_vertex_ratio(&c1, &c3, &ratio);
+			vertex_interp(&s3, v1, v3, ratio);
+			vector_interp(&k3, &c1, &c3, ratio);
+		}
+		else if ((check2 & 1) == 0)
+		{
+			s2 = *v2;
+			k2 = c2;
+
+			calc_cvv_cut_vertex_ratio(&c2, &c3, &ratio);
+			vertex_interp(&s3, v2, v3, ratio);
+			vector_interp(&k3, &c2, &c3, ratio);
+
+			calc_cvv_cut_vertex_ratio(&c2, &c1, &ratio);
+			vertex_interp(&s1, v2, v1, ratio);
+			vector_interp(&k1, &c2, &c1, ratio);
+		}
+		else if ((check3 & 1) == 0)
+		{
+			s3 = *v3;
+			k3 = c3;
+
+			calc_cvv_cut_vertex_ratio(&c3, &c2, &ratio);
+			vertex_interp(&s2, v3, v2, ratio);
+			vector_interp(&k2, &c3, &c2, ratio);
+
+			calc_cvv_cut_vertex_ratio(&c3, &c1, &ratio);
+			vertex_interp(&s1, v3, v1, ratio);
+			vector_interp(&k1, &c3, &c1, ratio);
+		}
+
+		device_draw_triangles(device, &k1, &k2, &k3, &s1, &s2, &s3);
 	}
+	else if (check_sum == 1)
+	{
+		if ((check1 & 1) == 1)
+		{
+			calc_cvv_cut_vertex_ratio(&c1, &c2, &ratio);
+			vertex_interp(&s1, v1, v2, ratio);
+			vector_interp(&k1, &c1, &c2, ratio);
+
+			s2 = *v2;
+			k2 = c2;
+
+			s3 = *v3;
+			k3 = c3;
+
+			calc_cvv_cut_vertex_ratio(&c1, &c3, &ratio);
+			vertex_interp(&s4, v1, v3, ratio);
+			vector_interp(&k4, &c1, &c3, ratio);
+
+			device_draw_triangles(device, &k1, &k2, &k3, &s1, &s2, &s3);
+			device_draw_triangles(device, &k1, &k3, &k4, &s1, &s3, &s4);
+		}
+		else if ((check2 & 1) == 1)
+		{
+			s1 = *v1;
+			k1 = c1;
+
+			calc_cvv_cut_vertex_ratio(&c2, &c1, &ratio);
+			vertex_interp(&s2, v2, v1, ratio);
+			vector_interp(&k2, &c2, &c1, ratio);
+
+			calc_cvv_cut_vertex_ratio(&c2, &c3, &ratio);
+			vertex_interp(&s3, v2, v3, ratio);
+			vector_interp(&k3, &c2, &c3, ratio);
+
+			s4 = *v3;
+			k4 = c3;
+
+			device_draw_triangles(device, &k1, &k2, &k3, &s1, &s2, &s3);
+			device_draw_triangles(device, &k1, &k3, &k4, &s1, &s3, &s4);
+		}
+		else if ((check3 & 1) == 1)
+		{
+			s1 = *v1;
+			k1 = c1;
+
+			s2 = *v2;
+			k2 = c2;
+
+			calc_cvv_cut_vertex_ratio(&c3, &c2, &ratio);
+			vertex_interp(&s3, v3, v2, ratio);
+			vector_interp(&k3, &c3, &c2, ratio);
+
+			calc_cvv_cut_vertex_ratio(&c3, &c1, &ratio);
+			vertex_interp(&s4, v3, v1, ratio);
+			vector_interp(&k4, &c3, &c1, ratio);
+
+			device_draw_triangles(device, &k1, &k2, &k3, &s1, &s2, &s3);
+			device_draw_triangles(device, &k1, &k3, &k4, &s1, &s3, &s4);
+		}
+	}
+	else
+	{
+		s1 = *v1;
+		k1 = c1;
+
+		s2 = *v2;
+		k2 = c2;
+
+		s3 = *v3;
+		k3 = c3;
+
+		device_draw_triangles(device,&k1,&k2,&k3,&s1,&s2,&s3);
+	}
+
 }
 
 //=====================================================================
@@ -305,11 +443,21 @@ void draw_backggroud(device_t *device)
 	draw_elements(device, TRIANGLES, 2, index_panel);
 }
 
-void draw_box(device_t *device, float theta) {
-	matrix_t m;
-	matrix_set_rotate(&m, -1, -0.5, 1, theta);
-	device->transform.world = m;
-	matrix_inverse(&m, &(device->transform.worldInv));
+void draw_box(device_t *device, float theta, float box_x, float box_y, float box_z) {
+	matrix_t rotate;
+	matrix_set_rotate(&rotate, -1, -0.5, 1, theta);
+
+	matrix_t translate;
+	matrix_set_translate(&translate, box_x, box_y, box_z);
+
+	matrix_t scale;
+	matrix_set_scale(&scale, 1.0f, 1.0f, 1.0f);
+
+	matrix_t model;
+	matrix_mul(&model, &scale, &rotate);
+	matrix_mul(&(device->transform.world), &model, &translate);
+
+	matrix_inverse(&(device->transform.world), &(device->transform.worldInv));
 	transform_update(&device->transform);
 
 	int index[36] = { 0,1,2, 2,3,0, 4,5,6, 6,7,4, 8,9,10, 10,11,8, 12,13,14, 14,15,12, 16,17,18, 18,19,16, 20,21,22, 22,23,20 };
@@ -497,6 +645,10 @@ int main(void)
 	int window_w = WINDOW_SIZE;
 	int window_h = WINDOW_SIZE;
 
+	float box_x = 0.0f;
+	float box_y = 0.0f;
+	float box_z = 0.0f;
+
 	memset(keys_state, 0, sizeof(int) * 512);
 
 #ifdef USE_GDI_VIEW
@@ -551,7 +703,7 @@ int main(void)
 			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
 			draw_backggroud(device);
 			shadow_light_transform_panel = device->transform.transform; // 获取平面的光源变换矩阵
-			draw_box(device, alpha);
+			draw_box(device, alpha, box_x, box_y, box_z);
 			shadow_light_transform_box = device->transform.transform; // 获取BOX的光源变换矩阵
 
 			if (NULL == shadow_texture)
@@ -589,7 +741,7 @@ int main(void)
 			draw_backggroud(device);
 			device_set_uniform_matrix_value(device, 0, &shadow_light_transform_box);
 		}
-		draw_box(device, alpha);
+		draw_box(device, alpha, box_x, box_y, box_z);
 
 #ifdef USE_GDI_VIEW
 		draw_screen_title(device);

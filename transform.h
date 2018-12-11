@@ -27,6 +27,7 @@ void transform_apply(const transform_t *ts, vector_t *y, const vector_t *x);
 
 // 检查齐次坐标同 cvv 的边界用于视锥裁剪
 int transform_check_cvv(const vector_t *v);
+bool calc_cvv_cut_vertex_ratio(const vector_t *c1, const vector_t *c2, float* fRatio);
 
 // 归一化，得到屏幕坐标
 void transform_homogenize(const transform_t *ts, vector_t *y, const vector_t *x);
