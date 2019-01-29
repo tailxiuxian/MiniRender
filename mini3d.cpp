@@ -474,7 +474,7 @@ void setup_camera(device_t *device, float x, float y, float z) {
 }
 
 // 光源
-static vector_t normal_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
+static vector_t normal_light_energy = { 0.3,0.3,0.3,0.0 };// 阴影入射光强
 static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 阴影入射光方向
 
 static vector_t shadow_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
@@ -513,6 +513,10 @@ void setup_shader(device_t *device)
 	else if (device->render_state == RENDER_STATE_SHADOW_MAP)
 	{
 		device_set_shader_state(device, SHADER_STATE_SHADOW_MAP);
+	}
+	else if (device->render_state == RENDER_STATE_BLINN_LIGHT_TEXTURE)
+	{
+		device_set_shader_state(device, SHADER_STATE_BLINN_LIGHT_TEXTURE);
 	}
 }
 
@@ -574,6 +578,19 @@ void setup_shader_parma(device_t *device, float x, float y, float z)
 		device_bind_texture(device, 0, default_texture_id);
 
 		device_bind_texture(device, 1, texture_shadow);
+	}
+	else if (device->shader_state == SHADER_STATE_BLINN_LIGHT_TEXTURE)
+	{
+		device_set_uniform_vector_value(device, 0, &normal_light_energy); // 入射光强
+
+		device_set_uniform_vector_value(device, 1, &normal_light_direction);
+
+		device_set_uniform_vector_value(device, 2, &eye); // 视点位置
+
+		vector_t matrial = { 1.0,2.0,1.0,0.0 }; // 材质参数 散射系数 反射系数 粗糙程度
+		device_set_uniform_vector_value(device, 3, &matrial);
+
+		device_bind_texture(device, 0, default_texture_id);
 	}
 }
 
@@ -637,7 +654,7 @@ void set_key_quit()
 
 int main(void)
 {
-	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA, RENDER_STATE_SHADOW_MAP };
+	int states[] = { RENDER_STATE_WIREFRAME, RENDER_STATE_TEXTURE, RENDER_STATE_COLOR, RENDER_STATE_LAMBERT_LIGHT_TEXTURE, RENDER_STATE_PHONG_LIGHT_TEXTURE, RENDER_STATE_TEXTURE_ALPHA, RENDER_STATE_SHADOW_MAP, RENDER_STATE_BLINN_LIGHT_TEXTURE };
 	int indicator = 0;
 	int kbhit = 0;
 	float alpha = -2.40f;

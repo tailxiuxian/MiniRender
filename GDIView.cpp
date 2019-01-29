@@ -248,6 +248,11 @@ void draw_screen_title(device_t *device)
 		lstrcat(title, _T("Shadow Map Mode"));
 		break;
 	}
+	case RENDER_STATE_BLINN_LIGHT_TEXTURE:
+	{
+		lstrcat(title, _T("Blinn Light Mode"));
+		break;
+	}
 	default:
 		lstrcat(title, _T("No Find  Mode"));
 		break;

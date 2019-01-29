@@ -76,7 +76,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->background = 0xc0c0c0ff;
 	device->foreground = 0;
 	transform_init(&device->transform, device->framebuffer_width, device->framebuffer_height);
-	device->render_state = RENDER_STATE_SHADOW_MAP;
+	device->render_state = RENDER_STATE_BLINN_LIGHT_TEXTURE;
 	device->function_state = 0;
 	device->bind_frame_buffer_idx = RENDER_NO_SET_FRAMEBUFFER_INDEX;
 }

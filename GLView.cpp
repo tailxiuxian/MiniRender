@@ -364,6 +364,11 @@ void drawGLTitle(device_t *device)
 		GLTitle += "Shadow Map Mode ";
 		break;
 	}
+	case RENDER_STATE_BLINN_LIGHT_TEXTURE:
+	{
+		GLTitle += "Blinn Light Mode ";
+		break;
+	}
 	default:
 		GLTitle += "No Find  Mode ";
 		break;
