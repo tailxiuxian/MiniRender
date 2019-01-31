@@ -26,5 +26,6 @@
     <ClInclude Include="bmpReader.h" />
     <ClInclude Include="blend.h" />
     <ClInclude Include="comm_func.h" />
+    <ClInclude Include="camera.h" />
   </ItemGroup>
 </Project>

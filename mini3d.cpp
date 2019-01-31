@@ -33,6 +33,7 @@
 #include "shader.h"
 #include "bmpReader.h"
 #include "blend.h"
+#include "camera.h"
 
 static int default_texture_id = 0;
 static int texture_bmp1 = 0;
@@ -207,7 +208,7 @@ static void device_draw_triangles(device_t *device,
 // 根据 render_state 绘制原始三角形
 void device_draw_primitive(device_t *device, vertex_t *v1, 
 	vertex_t *v2, vertex_t *v3) {
-	point_t p1, p2, p3, c1, c2, c3;
+	point_t c1, c2, c3;
 
 	func_vertex_shader p_shader = get_vertex_shader(device);
 	if (p_shader)
@@ -237,7 +238,6 @@ void device_draw_primitive(device_t *device, vertex_t *v1,
 	}
 
 	float ratio;
-	vertex_t y;
 	vertex_t s1, s2, s3, s4;
 	vector_t k1, k2, k3, k4;
 	if (check_sum == 2)
@@ -465,16 +465,11 @@ void draw_box(device_t *device, float theta, float box_x, float box_y, float box
 	draw_elements(device, TRIANGLES, 12, index);
 }
 
-void setup_camera(device_t *device, float x, float y, float z) {
-	point_t eye = { x, y, z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
-	
-	// upload matrix to GPU
-	matrix_set_lookat(&device->transform.view, &eye, &at, &up);
-	transform_update(&device->transform);
-}
+// 渲染相关组件
+static CCamera* g_mainCamera = NULL;
 
 // 光源
-static vector_t normal_light_energy = { 0.3,0.3,0.3,0.0 };// 阴影入射光强
+static vector_t normal_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
 static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 阴影入射光方向
 
 static vector_t shadow_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
@@ -677,7 +672,15 @@ int main(void)
 
 	device_t* device = get_device_inst();
 	device_init(device, window_w, window_h, get_screen_fb());
-	setup_camera(device, 0, 0, 0);
+	
+	if (g_mainCamera == NULL)
+	{
+		vector_t eye = { 0, 0, 0, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
+		g_mainCamera = new CCamera(eye, at, up);
+		g_mainCamera->makeup_view_matrix(&device->transform.view);
+		transform_update(&device->transform);
+	}
+	
 	setup_shader(device);
 	setup_shader_parma(device, 0, 0, 0);
 	init_texture(device);
@@ -691,6 +694,9 @@ int main(void)
 		if (get_key_state(MOVE_FAR)) pos += 0.01f;
 		if (get_key_state(ROTATE_LEFT)) alpha += 0.01f;
 		if (get_key_state(ROTATE_RIGHT)) alpha -= 0.01f;
+
+		vector_t eye = { pos, pos, pos, 1 };
+		g_mainCamera->set_eye(eye);
 
 		if (get_key_state(CHANGE_MODE)) {
 			if (kbhit == 0) {
@@ -714,8 +720,11 @@ int main(void)
 			device_bind_framebuffer(device, framebuffer_shadow);
 
 			device->background = 0;
-			device_clear_framebuffer(device, framebuffer_shadow, 0);
-			setup_camera(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);			
+			device_clear_framebuffer(device, framebuffer_shadow, 0);			
+			
+			vector_t eye = { shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z, 1 }, at = { 0, 0, 0, 1 }, up = { 0, 0, 1, 1 };
+			CCamera::makeup_view_matrix(&(device->transform.view), eye, at, up);
+
 			setup_shader(device);
 			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
 			draw_backggroud(device);
@@ -744,7 +753,10 @@ int main(void)
 		}
 
 		device_clear(device, 1);
-		setup_camera(device, pos, pos, pos);
+		
+		g_mainCamera->makeup_view_matrix(&device->transform.view);
+		transform_update(&device->transform);
+		
 		setup_shader(device);
 		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{

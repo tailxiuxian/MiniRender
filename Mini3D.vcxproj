@@ -96,6 +96,7 @@
     <ClInclude Include="basetype.h" />
     <ClInclude Include="blend.h" />
     <ClInclude Include="bmpReader.h" />
+    <ClInclude Include="camera.h" />
     <ClInclude Include="comm_func.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="GDIView.h" />
