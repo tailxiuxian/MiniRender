@@ -191,7 +191,7 @@ static void device_draw_triangles(device_t *device,
 		vertex_rhw_init(&t2);	// 初始化 w
 		vertex_rhw_init(&t3);	// 初始化 w
 
-								// 拆分三角形为0-2个梯形，并且返回可用梯形数量
+		// 拆分三角形为0-2个梯形，并且返回可用梯形数量
 		n = trapezoid_init_triangle(traps, &t1, &t2, &t3);
 
 		if (n >= 1) device_render_trap(device, &traps[0]);
@@ -515,10 +515,8 @@ void setup_shader(device_t *device)
 	}
 }
 
-void setup_shader_parma(device_t *device, float x, float y, float z)
-{
-	point_t eye = { x, y, z, 1 };
-	
+void setup_shader_parma(device_t *device, vector_t eye)
+{	
 	if (device->shader_state == SHADER_STATE_WIREFRAME)
 	{
 
@@ -681,8 +679,10 @@ int main(void)
 		transform_update(&device->transform);
 	}
 	
+	vector_t eye = {0, 0, 0, 1};
 	setup_shader(device);
-	setup_shader_parma(device, 0, 0, 0);
+	setup_shader_parma(device, eye);
+	
 	init_texture(device);
 
 	while (get_key_quit() == 0) {
@@ -726,7 +726,8 @@ int main(void)
 			CCamera::makeup_view_matrix(&(device->transform.view), eye, at, up);
 
 			setup_shader(device);
-			setup_shader_parma(device, shadow_light_direction.x, shadow_light_direction.y, shadow_light_direction.z);
+			setup_shader_parma(device, eye);
+			
 			draw_backggroud(device);
 			shadow_light_transform_panel = device->transform.transform; // 获取平面的光源变换矩阵
 			draw_box(device, alpha, box_x, box_y, box_z);
@@ -763,7 +764,7 @@ int main(void)
 			// 设置新的shader
 			device_set_shader_state(device, SHADER_STATE_LIGHT_SHADOW);
 		}
-		setup_shader_parma(device, pos, pos, pos);
+		setup_shader_parma(device, g_mainCamera->get_eye());
 		if (device->render_state == RENDER_STATE_SHADOW_MAP)
 		{
 			device_set_uniform_matrix_value(device, 0, &shadow_light_transform_panel);
