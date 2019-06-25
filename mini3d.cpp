@@ -21,6 +21,7 @@
 
 #include <windows.h>
 #include <tchar.h>
+#include <time.h>
 
 #include "basetype.h"
 #include "mathlib.h"
@@ -113,8 +114,6 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	int x = scanline->x;
 	int w = scanline->w;
 	int width = device->framebuffer_width;
-	int render_state = device->render_state;
-	int function_state = device->function_state;
 	for (; w > 0; x++, w--) {
 		if (x >= 0 && x < width) {
 			float rhw = scanline->v.rhw;
@@ -154,13 +153,27 @@ void device_render_trap(device_t *device, trapezoid_t *trap) {
 	int j, top, bottom;
 	top = (int)(trap->top + 0.5f);
 	bottom = (int)(trap->bottom + 0.5f);
+
+	float left_height = trap->left.v2.pos.y - trap->left.v1.pos.y;
+	vertex_t left_vertex_step;
+	vertex_division(&left_vertex_step, &trap->left.v1, &trap->left.v2, left_height);
+
+	float right_height = trap->right.v2.pos.y - trap->right.v1.pos.y;
+	vertex_t right_vertex_step;
+	vertex_division(&right_vertex_step, &trap->right.v1, &trap->right.v2, right_height);
+
+	trapezoid_edge_interp(trap, (float)top + 0.5f);
+
 	for (j = top; j < bottom; j++) {
 		if (j >= 0 && j < device->framebuffer_height) {
-			trapezoid_edge_interp(trap, (float)j + 0.5f);
+			//trapezoid_edge_interp(trap, (float)j + 0.5f);
 			trapezoid_init_scan_line(trap, &scanline, j);
 			device_draw_scanline(device, &scanline);
 		}
-		if (j >= device->framebuffer_height) break;
+		//if (j >= device->framebuffer_height) break;
+
+		vertex_add(&trap->left.v, &left_vertex_step);
+		vertex_add(&trap->right.v, &right_vertex_step);
 	}
 }
 
@@ -469,8 +482,8 @@ void draw_box(device_t *device, float theta, float box_x, float box_y, float box
 static CCamera* g_mainCamera = NULL;
 
 // 光源
-static vector_t normal_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
-static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 阴影入射光方向
+static vector_t normal_light_energy = { 1.0,1.0,1.0,0.0 };// 入射光强
+static vector_t normal_light_direction = { 1.0,1.0,1.0,0.0 }; // 入射光方向
 
 static vector_t shadow_light_energy = { 1.0,1.0,1.0,0.0 };// 阴影入射光强
 static vector_t shadow_light_direction = { 0.0,5.0,0.0,0.0 }; // 阴影入射光方向
@@ -685,6 +698,9 @@ int main(void)
 	
 	init_texture(device);
 
+	clock_t start = clock();
+	int iFrame = 0;
+
 	while (get_key_quit() == 0) {
 
 #ifdef USE_GDI_VIEW
@@ -694,6 +710,12 @@ int main(void)
 		if (get_key_state(MOVE_FAR)) pos += 0.01f;
 		if (get_key_state(ROTATE_LEFT)) alpha += 0.01f;
 		if (get_key_state(ROTATE_RIGHT)) alpha -= 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_A)) shadow_light_direction.x -= 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_D)) shadow_light_direction.x += 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_W)) shadow_light_direction.z += 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_S)) shadow_light_direction.z -= 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_F)) shadow_light_direction.y += 0.01f;
+		if (get_key_state(MOVE_SHADOW_LIGHT_N)) shadow_light_direction.y -= 0.01f;
 
 		vector_t eye = { pos, pos, pos, 1 };
 		g_mainCamera->set_eye(eye);
@@ -782,7 +804,15 @@ int main(void)
 		drawGLView();
 #endif
 
-		Sleep(1);
+		//Sleep(1);
+		iFrame++;
+		clock_t end = clock();
+		if ((end - start) / CLOCKS_PER_SEC >= 1)
+		{
+			/*printf("Frame Rate is %d\n", iFrame);*/
+			start = end;
+			iFrame = 0;
+		}
 	}
 
 #ifdef USE_GDI_VIEW

@@ -4,9 +4,11 @@
 
 #include "GL/glew.h"
 #include "GLFW/glfw3.h"
+#include "GLView.h"
 #include "renderstate.h"
 #include "device.h"
 #include <vector>
+#include <windows.h>
 
 extern void set_key_state(int keyCode, int value);
 extern void set_key_quit();
@@ -174,6 +176,30 @@ static void notify_key_state(int keyCode, int value)
 	else if (keyCode == GLFW_KEY_SPACE)
 	{
 		set_key_state(CHANGE_MODE, value);
+	}
+	else if (keyCode == GLFW_KEY_A)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_A, value);
+	}
+	else if (keyCode == GLFW_KEY_D)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_D, value);
+	}
+	else if (keyCode == GLFW_KEY_W)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_W, value);
+	}
+	else if (keyCode == GLFW_KEY_S)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_S, value);
+	}
+	else if (keyCode == GLFW_KEY_F)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_F, value);
+	}
+	else if (keyCode == GLFW_KEY_N)
+	{
+		set_key_state(MOVE_SHADOW_LIGHT_N, value);
 	}
 }
 
